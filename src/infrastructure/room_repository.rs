@@ -1,4 +1,5 @@
 use crate::domain::room::{AddRoomEntity, RoomEntity};
+use anyhow::Ok;
 use anyhow::Result;
 use diesel::SqliteConnection;
 use diesel::prelude::*;
@@ -70,6 +71,21 @@ impl RoomRepository {
 
         Ok(room)
     }
+
+
+    pub async fn get_room_by_status(&self, room_status: String) -> Result<Vec<RoomEntity>> { // <-- เปลี่ยนให้รับ String เดียว
+    let pool = self.pool.clone();
+    let mut conn = pool.get()?;
+
+    let rooms_found = rooms::table
+        .filter(rooms::status.eq(room_status)) // <-- ใช้ String ที่รับเข้ามาตรงๆ
+        .load::<RoomEntity>(&mut conn)
+        .map_err(|e| anyhow::anyhow!("Failed to load rooms by status: {}", e))?;
+
+    Ok(rooms_found)
+}
+
+
 
     //update Room
 
