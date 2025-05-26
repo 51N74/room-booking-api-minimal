@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::infrastructure::schema::rooms;
 
-#[derive(Debug,Clone,Insertable,Queryable,Serialize,Deserialize)]
+
+
+#[derive(Debug, Clone, Insertable, Queryable, Serialize, Deserialize)]
 #[diesel(table_name = rooms)]
 pub struct RoomEntity {
     pub id: i32,
@@ -11,8 +13,8 @@ pub struct RoomEntity {
     pub status: String, // "available" or "booked"
 }
 
-#[derive(Debug,Clone,Serialize,Deserialize)]pub struct RoomDTO {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RoomDTO {
     pub name: String,
     pub status: String,
 }
-

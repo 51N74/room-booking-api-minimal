@@ -2,7 +2,7 @@ use std::env;
 
 use anyhow::Result;
 use axum::{routing::post, Router};
-use room_booking_api_minimal::{application::room_service::RoomService, infrastructure::room_repository::RoomRepository, presentation::handler::create_room_handler};
+use room_booking_api_minimal::{application::{room_service::RoomService, user_service::UserService}, infrastructure::{room_repository::RoomRepository, user_repository::UserRepository}, presentation::{room_handler::create_room_handler, user_handler::create_user_handler}};
 use tokio::net::TcpListener;
 #[tokio::main]
 async fn main()->Result<()> {
@@ -10,12 +10,20 @@ async fn main()->Result<()> {
     
    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    let repo = RoomRepository::new(&database_url);
-    let service = RoomService::new(repo);
+   // สร้าง RoomService
+    let room_repo = RoomRepository::new(&database_url);
+    let room_service = RoomService::new(room_repo);
+
+
+    // สร้าง UserService
+    let user_repo = UserRepository::new(&database_url);
+    let user_service = UserService::new(user_repo);
 
     let app: Router = Router::new()
         .route("/rooms", post(create_room_handler))
-        .with_state(service);
+        .with_state(room_service) // ใช้ room_service เป็น state สำหรับ route นี้
+        .route("/users", post(create_user_handler))
+        .with_state(user_service); // ใช้ user_service เป็น state สำหรับ route นี้
 
     let listener = TcpListener::bind("0.0.0.0:3000").await?;
     println!("Server running on http://localhost:3000 ");

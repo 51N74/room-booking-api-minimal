@@ -43,5 +43,23 @@ impl RoomRepository{
             status: room.status,
         })
     }
+
+
+
+   pub async fn get_all_rooms(&self) -> Result<Vec<RoomEntity>> {
+    
+        // Clone the pool to move it into the blocking task
+        let pool = self.pool.clone();
+
+        // ย้ายการทำงานที่เป็น Blocking I/O ไปอยู่ใน spawn_blocking
+        let results = tokio::task::spawn_blocking(move || {
+            let mut conn = pool.get().unwrap(); // ดึง connection ภายใน blocking task
+            // ใช้ rooms (ที่มาจาก dsl) และเรียก load ด้วย Generic Type RoomEntity
+            rooms::table.load::<RoomEntity>(&mut conn)
+        })
+        .await??; // จัดการ JoinError และ Error จาก Diesel/r2d2
+
+        Ok(results)
+    }
 }
 

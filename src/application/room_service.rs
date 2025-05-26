@@ -14,4 +14,6 @@ impl RoomService{
     pub async fn create_room(&self,room:RoomDTO)->Result<RoomEntity>{
         self.repo.create_room(room).await
     }
+
+   
 }
