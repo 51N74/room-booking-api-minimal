@@ -23,6 +23,10 @@ impl RoomService{
         self.repo.get_room_by_id(room_id).await
     }
 
+    pub async fn get_room_by_status(&self,room_status:String)->Result<Vec<RoomEntity>>{
+        self.repo.get_room_by_status(room_status).await
+    }
+
     pub async fn update_room(&self,room:RoomEntity)->Result<RoomEntity>{
         self.repo.update_room(room).await
     }
@@ -30,4 +34,6 @@ impl RoomService{
    pub async fn delete_room(&self,room_id:i32)->Result<RoomEntity>{
         self.repo.delete_room(room_id).await
 }
+
+
 }

@@ -2,7 +2,7 @@ use std::env;
 
 use anyhow::Result;
 use axum::{routing::{delete, get, patch, post}, Router};
-use room_booking_api_minimal::{application::{admin_service::AdminService, room_service::RoomService, user_service::UserService}, infrastructure::{admin_repository::AdminRepository, room_repository::RoomRepository, user_repository::UserRepository}, presentation::{admin_handler::create_admin_handler, room_handler::{create_room_handler, delete_room_handler, get_all_rooms_handler, get_room_by_id_handler, update_room_handler}, user_handler::create_user_handler}};
+use room_booking_api_minimal::{application::{admin_service::AdminService, room_service::RoomService, user_service::UserService}, infrastructure::{admin_repository::AdminRepository, room_repository::RoomRepository, user_repository::UserRepository}, presentation::{admin_handler::create_admin_handler, room_handler::{create_room_handler, delete_room_handler, get_all_rooms_handler, get_room_by_id_handler, get_rooms_by_status_handler, update_room_handler}, user_handler::create_user_handler}};
 use tokio::net::TcpListener;
 #[tokio::main]
 async fn main()->Result<()> {
@@ -29,6 +29,7 @@ async fn main()->Result<()> {
         .route("/rooms/:room_id", get(get_room_by_id_handler))
         .route("/rooms/:room_id", patch(update_room_handler))
         .route("/rooms/:room_id", delete(delete_room_handler))
+        .route("/rooms/by-status", get(get_rooms_by_status_handler))
         .with_state(room_service) // ใช้ room_service เป็น state สำหรับ route นี้
         .route("/users", post(create_user_handler))
         .with_state(user_service)// ใช้ user_service เป็น state สำหรับ route นี้

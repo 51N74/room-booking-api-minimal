@@ -1,4 +1,4 @@
-use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::{Path, Query, State}, http::StatusCode, response::IntoResponse, Json};
 use serde::Deserialize;
 
 use crate::{application::{room_service::RoomService, user_service::UserService}, domain::{room::{AddRoomEntity, RoomEntity}, user::RegisterUserEntity}};
@@ -66,5 +66,30 @@ pub async fn delete_room_handler(
             println!("Room deleted successfully: {:?}", room); // เพิ่ม log สำหรับการลบห้อง
             (StatusCode::OK, Json(room),).into_response()},
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+
+// Struct สำหรับรับ Query Parameter
+#[derive(Debug, Deserialize)]
+pub struct GetRoomsByStatusQuery {
+    pub status: String, // <-- เปลี่ยนตรงนี้
+}
+pub async fn get_rooms_by_status_handler(
+    State(state): State<RoomService>,
+    Query(query): Query<GetRoomsByStatusQuery>,
+) -> impl IntoResponse {
+    // ไม่ต้องตรวจสอบ query.status.is_empty() อีกต่อไป เพราะมันเป็น String แล้ว
+    if query.status.is_empty() { // อาจจะเช็คได้ ถ้าคุณอยากให้ string ว่างเปล่าเป็น BadRequest
+         return (StatusCode::BAD_REQUEST, "Status parameter cannot be empty").into_response();
+    }
+
+    // เรียกใช้ฟังก์ชันที่รับ String เดียว (ถ้าคุณมี)
+    match state.get_room_by_status(query.status).await {
+        Ok(rooms) => (StatusCode::OK, Json(rooms)).into_response(),
+        Err(e) => {
+            eprintln!("Error fetching room by status: {:?}", e);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to retrieve room").into_response()
+        }
     }
 }
