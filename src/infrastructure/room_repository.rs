@@ -70,4 +70,35 @@ impl RoomRepository {
 
         Ok(room)
     }
+
+    //update Room
+
+    pub async fn update_room(&self, room: RoomEntity) -> Result<RoomEntity> {
+        let pool = self.pool.clone();
+        let mut conn = pool.get()?;
+
+        diesel::update(rooms::table.filter(rooms::id.eq(room.id)))
+            .set((
+                rooms::name.eq(room.name.clone()),
+                rooms::status.eq(room.status.clone()),
+            ))
+            .execute(&mut conn)
+            .map_err(|e| anyhow::anyhow!("Failed to update room: {}", e))?;
+
+        Ok(room)
+    }
+
+    //delete
+
+    pub async fn delete_room(&self, room_id: i32) -> Result<RoomEntity> {
+        let pool = self.pool.clone();
+        let mut conn = pool.get()?;
+
+        let deleted_room = rooms::table
+            .filter(rooms::id.eq(room_id))
+            .first::<RoomEntity>(&mut conn)
+            .optional()?
+            .ok_or_else(|| anyhow::anyhow!("Room with id {} not found", room_id))?;
+        Ok(deleted_room)
+    }
 }

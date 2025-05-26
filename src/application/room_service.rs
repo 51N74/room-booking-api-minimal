@@ -23,5 +23,11 @@ impl RoomService{
         self.repo.get_room_by_id(room_id).await
     }
 
+    pub async fn update_room(&self,room:RoomEntity)->Result<RoomEntity>{
+        self.repo.update_room(room).await
+    }
    
+   pub async fn delete_room(&self,room_id:i32)->Result<RoomEntity>{
+        self.repo.delete_room(room_id).await
+}
 }
