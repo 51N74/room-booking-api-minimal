@@ -1,7 +1,7 @@
 use anyhow::Result;
 use diesel::SqliteConnection;
 use diesel::prelude::*;
-use crate::domain::room::{RoomDTO, RoomEntity};
+use crate::domain::room::{AddRoomEntity, RoomEntity};
 
 use super::schema::rooms;
 
@@ -17,7 +17,7 @@ impl RoomRepository{
         RoomRepository { pool }
     }
 
-    pub async fn create_room(&self,room:RoomDTO)->Result<RoomEntity>{
+    pub async fn create_room(&self,room:AddRoomEntity)->Result<RoomEntity>{
         let new_room = (
             rooms::name.eq(room.name.clone()),
             rooms::status.eq(room.status.clone())
@@ -44,20 +44,14 @@ impl RoomRepository{
         })
     }
 
-
-
-   pub async fn get_all_rooms(&self) -> Result<Vec<RoomEntity>> {
-    
-        // Clone the pool to move it into the blocking task
+    //Get all rooms
+    pub async fn get_all_rooms(&self)->Result<Vec<RoomEntity>>{
         let pool = self.pool.clone();
+        let mut conn = pool.get()?;
 
-        // ย้ายการทำงานที่เป็น Blocking I/O ไปอยู่ใน spawn_blocking
-        let results = tokio::task::spawn_blocking(move || {
-            let mut conn = pool.get().unwrap(); // ดึง connection ภายใน blocking task
-            // ใช้ rooms (ที่มาจาก dsl) และเรียก load ด้วย Generic Type RoomEntity
-            rooms::table.load::<RoomEntity>(&mut conn)
-        })
-        .await??; // จัดการ JoinError และ Error จาก Diesel/r2d2
+        let results = rooms::table
+            .load::<RoomEntity>(&mut conn)
+            .map_err(|e| anyhow::anyhow!("Failed to load rooms: {}", e))?;
 
         Ok(results)
     }

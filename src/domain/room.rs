@@ -14,7 +14,8 @@ pub struct RoomEntity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RoomDTO {
+pub struct AddRoomEntity {
+    pub id: i32,
     pub name: String,
     pub status: String,
 }

@@ -13,13 +13,6 @@ pub struct UserEntity{
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserDTO{
-    pub username:String,
-    pub password_hash:String,
-
-    
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterUserEntity{
     pub id:i32,
     pub username:String,

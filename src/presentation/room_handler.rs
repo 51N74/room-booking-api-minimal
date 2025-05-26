@@ -1,7 +1,7 @@
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use serde::Deserialize;
 
-use crate::{application::{room_service::RoomService, user_service::UserService}, domain::{room::RoomDTO, user::RegisterUserEntity}};
+use crate::{application::{room_service::RoomService, user_service::UserService}, domain::{room::AddRoomEntity, user::RegisterUserEntity}};
 
 #[derive(Clone, Deserialize)]
 pub struct CreateRoomRequest {
@@ -13,7 +13,8 @@ pub async fn create_room_handler(
     State(state): State<RoomService>,
     Json(payload): Json<CreateRoomRequest>,
 ) -> impl IntoResponse {
-    let room_dto = RoomDTO {
+    let room_dto = AddRoomEntity {
+        id:0,
         name: payload.name,
         status: payload.status,
     };
@@ -23,5 +24,14 @@ pub async fn create_room_handler(
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     }
 }
+
+pub async fn get_all_rooms_handler(
+    State(state):State<RoomService>,
+    )-> impl IntoResponse{
+        match state.get_all_rooms().await{
+            Ok(rooms)=> (StatusCode::OK, Json(rooms)).into_response(),
+            Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        }
+    }
 
 

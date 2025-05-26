@@ -1,4 +1,4 @@
-use crate::{domain::room::{RoomDTO, RoomEntity}, infrastructure::room_repository::RoomRepository};
+use crate::{domain::room::{AddRoomEntity, RoomEntity}, infrastructure::room_repository::RoomRepository};
 use anyhow::Result;
 
 #[derive(Debug, Clone)]
@@ -11,8 +11,12 @@ impl RoomService{
         RoomService {repo}
     }
 
-    pub async fn create_room(&self,room:RoomDTO)->Result<RoomEntity>{
+    pub async fn create_room(&self,room:AddRoomEntity)->Result<RoomEntity>{
         self.repo.create_room(room).await
+    }
+
+    pub async fn get_all_rooms(&self)->Result<Vec<RoomEntity>>{
+        self.repo.get_all_rooms().await
     }
 
    
