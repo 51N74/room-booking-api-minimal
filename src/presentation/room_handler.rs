@@ -1,4 +1,4 @@
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse, Json};
 use serde::Deserialize;
 
 use crate::{application::{room_service::RoomService, user_service::UserService}, domain::{room::AddRoomEntity, user::RegisterUserEntity}};
@@ -34,4 +34,15 @@ pub async fn get_all_rooms_handler(
         }
     }
 
-
+pub async fn get_room_by_id_handler(
+    State(state): State<RoomService>, // อันนี้ถูกต้องแล้ว
+    Path(room_id): Path<i32>, // <-- แก้ไขตรงนี้!
+) -> impl IntoResponse {
+    match state.get_room_by_id(room_id).await {
+        Ok(room) => (StatusCode::OK, Json(room)).into_response(),
+        Err(e) => {
+            eprintln!("Error getting room by id: {}", e); // เพิ่ม log error สำหรับ debug
+            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        },
+    }
+}

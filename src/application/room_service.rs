@@ -19,5 +19,9 @@ impl RoomService{
         self.repo.get_all_rooms().await
     }
 
+    pub async fn get_room_by_id(&self,room_id:i32)->Result<RoomEntity>{
+        self.repo.get_room_by_id(room_id).await
+    }
+
    
 }
