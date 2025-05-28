@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::user_service::UserService;
 // นำเข้า Struct จาก Domain Layer
-use crate::domain::user::{User, LoginCredentials};
+use crate::domain::user::LoginCredentials;
 
 // Request Body สำหรับการลงทะเบียน (รับรหัสผ่านดิบจาก Client)
 #[derive(Clone, Deserialize)]
