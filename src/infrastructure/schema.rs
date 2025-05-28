@@ -5,6 +5,8 @@ diesel::table! {
         id -> Integer,
         username -> Text,
         password_hash -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
@@ -15,6 +17,9 @@ diesel::table! {
         room_id -> Integer,
         start_time -> Timestamp,
         end_time -> Timestamp,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+        deleted_at -> Nullable<Timestamp>,
     }
 }
 
@@ -23,6 +28,9 @@ diesel::table! {
         id -> Integer,
         name -> Text,
         status -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+        deleted_at -> Nullable<Timestamp>,
     }
 }
 
@@ -31,6 +39,8 @@ diesel::table! {
         id -> Integer,
         username -> Text,
         password_hash -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
