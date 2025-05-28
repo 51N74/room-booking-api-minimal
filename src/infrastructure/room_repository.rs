@@ -1,6 +1,8 @@
 use crate::domain::room::NewRoom;
 use crate::domain::room::Room;
+use crate::domain::room::RoomChangeset;
 
+use chrono::Local;
 use diesel::SqliteConnection;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
@@ -47,13 +49,105 @@ impl RoomRepository {
         diesel::insert_into(rooms::table)
             .values(&new_room_data)
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to insert user into DB: {}", e));
+            .map_err(|e| format!("Failed to insert room into DB: {}", e));
 
         let inserted_room = rooms::table
             .filter(rooms::name.eq(&new_room_data.name))
             .first::<Room>(&mut conn)
-            .map_err(|e| format!("Failed to retrieve newly inserted user: {}", e))?;
+            .map_err(|e| format!("Failed to retrieve newly inserted room: {}", e))?;
 
         Ok(inserted_room)
+    }
+
+    pub async fn get_all_room(&self) -> Result<Vec<Room>, String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get DB connection: {}", e))?;
+
+        let rooms = rooms::table
+            .load::<Room>(&mut conn)
+            .map_err(|e| format!("Failed to retrieve all users: {}", e))?;
+        Ok(rooms)
+    }
+    pub async fn get_room_by_id(&self, room_id: i32) -> Result<Room, String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get DB connection: {}", e))?; // <<-- ตรงนี้ดึง Connection จาก Pool
+
+        let room = rooms::table // <<-- อ้างถึงตาราง rooms
+            .filter(rooms::id.eq(room_id))
+            .filter(rooms::deleted_at.is_null()) 
+            .first::<Room>(&mut conn) // <<-- ดึงข้อมูลแรกที่เจอและแปลงเป็น Struct Room
+            .map_err(|e| format!("Failed to retrieve room by ID: {}", e))?; // <<-- จัดการ Error ถ้าไม่พบหรือไม่สำเร็จ
+
+        Ok(room) // <<-- คืนค่า Room ที่พบ
+    }
+
+    pub async fn get_all_active_rooms(&self)->Result<Vec<Room>,String>{
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get DB connection: {}", e))?; // <<-- ตรงนี้ดึง Connection จาก Pool
+        let rooms = rooms::table
+            .filter(rooms::deleted_at.is_null()) 
+            .load::<Room>(&mut conn)
+            .map_err(|e| format!("Failed to retrieve all users: {}", e))?;
+        Ok(rooms)
+    }
+
+
+
+
+
+    pub async fn update_room(&self, room_id: i32, changes: RoomChangeset) -> Result<Room, String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get DB connection: {}", e))?; // <<-- ตรงนี้ดึง Connection จาก Pool
+        let update_rows = diesel::update(rooms::table.filter(rooms::id.eq(room_id)))
+            .set(&changes)
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to retrieve room by ID: {}", e))?; // <<-- จัดการ Error ถ้าไม่พบหรือไม่สำเร็จ
+        if update_rows == 0 {
+            return Err("Room not found".to_string());
+        }
+        let updated_room = rooms::table
+            .filter(rooms::id.eq(room_id))
+            .first::<Room>(&mut conn)
+            .map_err(|e| format!("Failed to retrieve room by ID: {}", e))?;
+
+        Ok(updated_room)
+    }
+    pub async fn delete_room(&self, room_id: i32 ) -> Result<Room, String> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| format!("Failed to get DB connection: {}", e))?; // <<-- ตรงนี้ดึง Connection จาก Pool
+        
+        let changes = RoomChangeset {
+            name: None,          // ไม่ได้อัปเดตชื่อSome
+            status: None,   // ไม่ได้อัปเดตคำอธิบาย
+            updated_at: Some(Local::now().naive_local()), // อัปเดต updated_at ด้วย
+            deleted_at: Some(Local::now().naive_local()), // <<-- ตั้งค่า deleted_at
+        };
+        
+        let updated_rows = diesel::update(rooms::table.filter(rooms::id.eq(room_id)))
+            .set(changes)
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to soft delete room: {}", e))?;
+
+        if updated_rows == 0 {
+            return Err("Room not found or already deleted".to_string());
+        } 
+        
+        let updated_room = rooms::table
+            .filter(rooms::id.eq(room_id))
+            .first::<Room>(&mut conn)
+            .map_err(|e| format!("Failed to retrieve room by ID: {}", e))?;
+        
+        Ok(updated_room)
+
     }
 }

@@ -1,5 +1,5 @@
 use chrono::NaiveDateTime;
-use diesel::{Insertable, Queryable};
+use diesel::{prelude::AsChangeset, Insertable, Queryable};
 use serde::{Deserialize, Serialize};
 
 use crate::infrastructure::schema::rooms;
@@ -31,4 +31,22 @@ pub struct AddRoomRequest {
 pub struct NewRoom<'a> {
     pub name: &'a str,
     pub status: &'a str, // <<-- สถานะห้อง
+}
+
+
+// RoomChangeset: Struct สำหรับส่งข้อมูลไป UPDATE
+// มีเฉพาะ Field ที่ต้องการให้ Update ได้
+#[derive(Debug, Clone, AsChangeset, Deserialize, Serialize)]
+#[diesel(table_name = rooms)] // <<-- ต้องระบุ table_name
+pub struct RoomChangeset {
+    pub name: Option<String>,        // ใช้ Option เพื่อรองรับ Partial Update
+    pub status:Option<String>,
+    pub updated_at: Option<NaiveDateTime>,
+    pub deleted_at: Option<NaiveDateTime>, // ถ้าต้องการ update deleted_at
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateRoomRequest{
+    pub name:Option<String>,
+    pub status:Option<String>
 }

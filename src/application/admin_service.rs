@@ -29,3 +29,4 @@ impl AdminService {
         Ok(admin.id)
     }
 }
+

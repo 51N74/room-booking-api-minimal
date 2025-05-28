@@ -1,12 +1,14 @@
 // src/presentation/user_handler.rs
 
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use serde::{Deserialize};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use serde::Deserialize;
 
 use crate::application::room_service::RoomService;
-
-
-
 
 // Request Body สำหรับการลงทะเบียน (รับรหัสผ่านดิบจาก Client)
 #[derive(Clone, Deserialize)]
@@ -33,3 +35,47 @@ pub async fn add_room_handler(
     }
 }
 
+pub async fn get_all_room_handler(
+    State(room_service): State<RoomService>,
+) -> Result<Json<Vec<crate::domain::room::Room>>, String> {
+    room_service.get_all_room().await.map(Json)
+}
+
+// get room by id
+pub async fn get_room_by_id_handler(
+    State(room_service): State<RoomService>,
+    Path(room_id): Path<i32>,
+) -> Result<Json<crate::domain::room::Room>, String> {
+    room_service.get_room_by_id(room_id).await.map(Json)
+}
+
+
+pub async fn get_all_active_rooms_handler(
+    State(room_service): State<RoomService>,
+) -> impl IntoResponse {
+    match room_service.get_all_active_rooms().await {
+        Ok(rooms) => (StatusCode::OK, Json(rooms)).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+    }
+}
+
+pub async fn update_room_handler(
+    State(room_service):State<RoomService>,
+    Path(room_id):Path<i32>,
+    Json(payload):Json<crate::domain::room::UpdateRoomRequest>,
+) -> impl IntoResponse{
+    match room_service.update_room(room_id,payload).await{
+        Ok(room) => (StatusCode::CREATED,Json(room)).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST,e).into_response(),
+    }
+}
+
+pub async fn delete_room_handler(
+    State(room_service):State<RoomService>,
+    Path(room_id):Path<i32>,
+) -> impl IntoResponse{
+    match room_service.delete_room(room_id).await{
+        Ok(room) => (StatusCode::CREATED,Json(room)).into_response(),
+        Err(e) => (StatusCode::BAD_REQUEST,e).into_response(),
+    }
+}
