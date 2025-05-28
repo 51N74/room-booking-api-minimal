@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, Utc};
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +11,8 @@ pub struct BookingEntity {
     pub room_id: i32,
     pub start_time: NaiveDateTime,
     pub end_time: NaiveDateTime,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 pub struct AddBookingEntity {
@@ -18,4 +20,6 @@ pub struct AddBookingEntity {
     pub room_id: i32,
     pub start_time: NaiveDateTime,
     pub end_time: NaiveDateTime,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }

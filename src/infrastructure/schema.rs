@@ -4,7 +4,7 @@ diesel::table! {
     admins (id) {
         id -> Integer,
         username -> Text,
-        password -> Text,
+        password_hash -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
@@ -38,7 +38,7 @@ diesel::table! {
     users (id) {
         id -> Integer,
         username -> Text,
-        password -> Text,
+        password_hash -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

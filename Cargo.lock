@@ -1282,6 +1282,7 @@ dependencies = [
  "diesel_migrations",
  "dotenv",
  "jsonwebtoken",
+ "r2d2",
  "rusqlite",
  "serde",
  "serde_json",
