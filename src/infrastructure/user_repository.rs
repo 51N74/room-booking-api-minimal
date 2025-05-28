@@ -48,7 +48,7 @@ impl UserRepository {
         diesel::insert_into(users::table)
             .values(&new_user_data)
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to insert user into DB: {}", e));
+            .map_err(|e| format!("Failed to insert user into DB: {}", e))?;
 
         let inserted_user = users::table
             .filter(users::username.eq(&new_user_data.username))

@@ -47,7 +47,7 @@ impl AdminRepository {
         diesel::insert_into(admins::table)
             .values(&new_admin_data)
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to insert user into DB: {}", e));
+            .map_err(|e| format!("Failed to insert user into DB: {}", e))?;
 
         let inserted_admin = admins::table
             .filter(admins::username.eq(&new_admin_data.username))

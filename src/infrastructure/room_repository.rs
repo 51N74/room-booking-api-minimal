@@ -49,7 +49,7 @@ impl RoomRepository {
         diesel::insert_into(rooms::table)
             .values(&new_room_data)
             .execute(&mut conn)
-            .map_err(|e| format!("Failed to insert room into DB: {}", e));
+            .map_err(|e| format!("Failed to insert room into DB: {}", e))?;
 
         let inserted_room = rooms::table
             .filter(rooms::name.eq(&new_room_data.name))
