@@ -1,67 +1,110 @@
-// use crate::domain::booking::AddBookingEntity;
-// use crate::domain::booking::BookingEntity;
-// use anyhow::Ok;
-// use anyhow::Result;
-// use diesel::SqliteConnection;
-// use diesel::prelude::*;
+// src/infrastructure/booking_repository.rs
 
-// use super::schema::bookings;
-// #[derive(Debug, Clone)]
-// pub struct BookingRepository {
-//     pool: diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<SqliteConnection>>,
-// }
+use diesel::prelude::*;
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::SqliteConnection;
+use chrono::{NaiveDateTime, Utc};
 
-// impl BookingRepository {
-//     pub fn new(database_url: &str) -> Self {
-//         let manager = diesel::r2d2::ConnectionManager::<SqliteConnection>::new(database_url);
-//         let pool = diesel::r2d2::Pool::builder()
-//             .build(manager)
-//             .expect("Failed to create pool");
-//         BookingRepository { pool }
-//     }
+use crate::infrastructure::schema::bookings;
+use crate::domain::booking::{Booking, NewBooking, BookingChangeset, BookingStatus}; // <<-- ยังคง import BookingStatus
 
-//     pub async fn create_booking(&self, booking: AddBookingEntity) -> Result<BookingEntity> {
-//         let new_booking = (
-//             bookings::user_id.eq(booking.user_id),
-//             bookings::room_id.eq(booking.room_id),
-//             bookings::start_time.eq(booking.start_time),
-//             bookings::end_time.eq(booking.end_time),
-//         );
+pub struct BookingRepository {
+    pool: Pool<ConnectionManager<SqliteConnection>>,
+}
 
-//         let mut conn = self.pool.get()?;
+impl BookingRepository {
+    pub fn new(pool: Pool<ConnectionManager<SqliteConnection>>) -> Self {
+        BookingRepository { pool }
+    }
 
-//         diesel::insert_into(bookings::table)
-//             .values(&new_booking)
-//             .execute(&mut conn)
-//             .map_err(|e| anyhow::anyhow!("Failed to insert booking: {}", e))?;
+    pub async fn create_booking(&self, new_booking_data: NewBooking) -> Result<Booking, String> {
+        let mut conn = self.pool.get().map_err(|e| format!("Failed to get DB connection: {}", e))?;
 
-//         let id = diesel::select(diesel::dsl::sql::<diesel::sql_types::Integer>(
-//             "last_insert_rowid()",
-//         ))
-//         .get_result::<i32>(&mut conn)
-//         .map_err(|e| anyhow::anyhow!("Failed to get last insert id: {}", e))?;
+        diesel::insert_into(bookings::table)
+            .values(&new_booking_data)
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to insert booking into DB: {}", e))?;
 
-//         Ok(BookingEntity {
-//             id,
-//             user_id: booking.user_id,
-//             room_id: booking.room_id,
-//             start_time: booking.start_time,
-//             end_time: booking.end_time,
-//             created_at: booking.created_at,
-//             updated_at: booking.updated_at,
-//             deleted_at: booking.deleted_at,
-//         })
-//     }
+        bookings::table
+            .filter(bookings::room_id.eq(new_booking_data.room_id))
+            .filter(bookings::user_id.eq(new_booking_data.user_id))
+            .filter(bookings::start_time.eq(new_booking_data.start_time))
+            .filter(bookings::end_time.eq(new_booking_data.end_time))
+            .order(bookings::created_at.desc())
+            .first::<Booking>(&mut conn)
+            .map_err(|e| format!("Failed to retrieve newly created booking: {}", e))
+    }
 
-//     pub async fn cancel_booking(&self, booking_id: i32) -> Result<(BookingEntity)> {
-//         let pool = self.pool.clone();
-//         let mut conn = pool.get()?;
+    pub async fn get_booking_by_id(&self, booking_id: i32) -> Result<Booking, String> {
+        let mut conn = self.pool.get().map_err(|e| format!("Failed to get DB connection: {}", e))?;
 
-//         let deleted_booking = bookings::table
-//             .filter(bookings::id.eq(booking_id))
-//             .first::<BookingEntity>(&mut conn)
-//             .optional()?
-//             .ok_or_else(|| anyhow::anyhow!("Room with id {} not found", booking_id))?;
-//         Ok(deleted_booking)
-//     }
-// }
+        bookings::table
+            .filter(bookings::id.eq(booking_id))
+            .first::<Booking>(&mut conn)
+            .map_err(|e| match e {
+                diesel::result::Error::NotFound => "Booking not found".to_string(),
+                _ => format!("Failed to retrieve booking by ID: {}", e),
+            })
+    }
+
+    pub async fn get_all_bookings(&self) -> Result<Vec<Booking>, String> {
+        let mut conn = self.pool.get().map_err(|e| format!("Failed to get DB connection: {}", e))?;
+
+        bookings::table
+            .load::<Booking>(&mut conn)
+            .map_err(|e| format!("Failed to retrieve all bookings: {}", e))
+    }
+
+    pub async fn get_overlapping_bookings(
+        &self,
+        room_id: i32,
+        start_time: NaiveDateTime,
+        end_time: NaiveDateTime,
+        exclude_booking_id: Option<i32>,
+    ) -> Result<Vec<Booking>, String> {
+        let mut conn = self.pool.get().map_err(|e| format!("Failed to get DB connection: {}", e))?;
+
+        let mut query = bookings::table
+            .filter(bookings::room_id.eq(room_id))
+            .filter(bookings::status.ne(BookingStatus::Cancelled)) // <<-- ยังคงมี filter สถานะ
+            .filter(bookings::status.ne(BookingStatus::Completed)) // <<-- ยังคงมี filter สถานะ
+            .filter(bookings::start_time.lt(end_time))
+            .filter(bookings::end_time.gt(start_time))
+            .into_boxed();
+
+        if let Some(id) = exclude_booking_id {
+            query = query.filter(bookings::id.ne(id));
+        }
+
+        query.load::<Booking>(&mut conn)
+            .map_err(|e| format!("Failed to check for overlapping bookings: {}", e))
+    }
+
+    // ฟังก์ชันอัปเดตสถานะการจอง (ยังคงมี)
+    pub async fn update_booking_status(&self, booking_id: i32, new_status: BookingStatus) -> Result<Booking, String> {
+        let mut conn = self.pool.get().map_err(|e| format!("Failed to get DB connection: {}", e))?;
+
+        let changes = BookingChangeset {
+            room_id: None,
+            user_id: None,
+            start_time: None,
+            end_time: None,
+            status: Some(new_status), // <<-- ยังคงมี status
+            updated_at: Some(Utc::now().naive_utc()),
+        };
+
+        let updated_rows = diesel::update(bookings::table.filter(bookings::id.eq(booking_id)))
+            .set(changes)
+            .execute(&mut conn)
+            .map_err(|e| format!("Failed to update booking status: {}", e))?;
+
+        if updated_rows == 0 {
+            return Err("Booking not found or no changes applied".to_string());
+        }
+
+        bookings::table
+            .filter(bookings::id.eq(booking_id))
+            .first::<Booking>(&mut conn)
+            .map_err(|e| format!("Failed to retrieve updated booking: {}", e))
+    }
+}

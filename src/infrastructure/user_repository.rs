@@ -61,7 +61,7 @@ impl UserRepository {
     // ฟังก์ชันสำหรับค้นหาผู้ใช้ด้วย Username และตรวจสอบรหัสผ่าน›
     pub async fn find_user_by_username_and_verify_password(
         &self,
-        login_credentials: LoginCredentials,
+        login_credentials: LoginCredentials
     ) -> Result<User, String> {
         let mut conn = self
             .pool
