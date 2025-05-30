@@ -13,10 +13,11 @@ diesel::table! {
 diesel::table! {
     bookings (id) {
         id -> Integer,
-        user_id -> Integer,
         room_id -> Integer,
+        user_id -> Integer,
         start_time -> Timestamp,
         end_time -> Timestamp,
+        status -> Text,
         created_at -> Timestamp,
         updated_at -> Timestamp,
         deleted_at -> Nullable<Timestamp>,
