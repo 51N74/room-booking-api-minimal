@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::application::user_service::UserService;
 // นำเข้า Struct จาก Domain Layer
 use crate::domain::user::LoginCredentials;
+use crate::infrastructure::jwt::JwtService;
 
 // Request Body สำหรับการลงทะเบียน (รับรหัสผ่านดิบจาก Client)
 #[derive(Clone, Deserialize)]
@@ -26,7 +27,9 @@ pub struct LoginUserRequest {
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub user_id: i32,
-    // pub token: String, // ถ้ามี Token-based authentication
+    pub token: String,      // เพิ่ม token ใน response
+    pub role: String,       // เพิ่ม role ใน response
+    pub expires_in: i64,    // เวลาหมดอายุ (วินาที)
 }
 
 // Handler สำหรับการลงทะเบียนผู้ใช้ (POST /register)
@@ -50,9 +53,8 @@ pub async fn register_user_handler(
 // Handler สำหรับการ Login ผู้ใช้ (POST /login)
 pub async fn login_user_handler(
     State(user_service): State<UserService>,
-    Json(payload): Json<LoginUserRequest>, // รับ LoginUserRequest
-) -> impl IntoResponse {
-    // แปลง LoginUserRequest ไปเป็น LoginCredentials
+    Json(payload): Json<LoginUserRequest>,
+) -> Result<Json<LoginResponse>, (StatusCode, String)> {
     let login_credentials = LoginCredentials {
         username: payload.username,
         password: payload.password,
@@ -60,9 +62,20 @@ pub async fn login_user_handler(
 
     match user_service.login_user(login_credentials).await {
         Ok(user_id) => {
-            let response = LoginResponse { user_id };
-            (StatusCode::OK, Json(response)).into_response()
-        },
-        Err(e) => (StatusCode::UNAUTHORIZED, e).into_response(), // <<-- UNAUTHORIZED สำหรับ Login Failed
+            // สร้าง JWT Token
+            match JwtService::create_token(user_id, "user") {
+                Ok(token) => {
+                    let response = LoginResponse {
+                        user_id,
+                        token,
+                        role: "user".to_string(),
+                        expires_in: 24 * 60 * 60, // 24 ชั่วโมง
+                    };
+                    Ok(Json(response))
+                }
+                Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to create token".to_string())),
+            }
+        }
+        Err(e) => Err((StatusCode::UNAUTHORIZED, e)),
     }
 }

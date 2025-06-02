@@ -7,6 +7,7 @@ use crate::application::admin_service::AdminService;
 
 // นำเข้า Struct จาก Domain Layer
 use crate::domain::admin::LoginCredentials;
+use crate::infrastructure::jwt::JwtService;
 
 // Request Body สำหรับการลงทะเบียน (รับรหัสผ่านดิบจาก Client)
 #[derive(Clone, Deserialize)]
@@ -26,7 +27,9 @@ pub struct LoginAdminRequest {
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub admin_id: i32,
-    // pub token: String, // ถ้ามี Token-based authentication
+     pub token: String,      // เพิ่ม token ใน response
+    pub role: String,       // เพิ่ม role ใน response
+    pub expires_in: i64,    // เวลาหมดอายุ (วินาที)
 }
 
 // Handler สำหรับการลงทะเบียนผู้ใช้ (POST /register)
@@ -48,11 +51,11 @@ pub async fn register_admin_handler(
 }
 
 // Handler สำหรับการ Login ผู้ใช้ (POST /login)
+// Handler สำหรับการ Login Admin (POST /login/admin)
 pub async fn login_admin_handler(
     State(admin_service): State<AdminService>,
-    Json(payload): Json<LoginAdminRequest>, // รับ LoginUserRequest
-) -> impl IntoResponse {
-    // แปลง LoginUserRequest ไปเป็น LoginCredentials
+    Json(payload): Json<LoginAdminRequest>,
+) -> Result<Json<LoginResponse>, (StatusCode, String)> {
     let login_credentials = LoginCredentials {
         username: payload.username,
         password: payload.password,
@@ -60,9 +63,20 @@ pub async fn login_admin_handler(
 
     match admin_service.login_admin(login_credentials).await {
         Ok(admin_id) => {
-            let response = LoginResponse { admin_id };
-            (StatusCode::OK, Json(response)).into_response()
+            // สร้าง JWT Token สำหรับ Admin
+            match JwtService::create_token(admin_id, "admin") {
+                Ok(token) => {
+                    let response = LoginResponse {
+                        admin_id,
+                        token,
+                        role: "admin".to_string(),
+                        expires_in: 24 * 60 * 60, // 24 ชั่วโมง
+                    };
+                    Ok(Json(response))
+                }
+                Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to create token".to_string())),
+            }
         }
-        Err(e) => (StatusCode::UNAUTHORIZED, e).into_response(), // <<-- UNAUTHORIZED สำหรับ Login Failed
+        Err(e) => Err((StatusCode::UNAUTHORIZED, e)),
     }
 }
