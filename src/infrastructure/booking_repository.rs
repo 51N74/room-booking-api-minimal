@@ -1,4 +1,4 @@
-use crate::domain::booking::{Booking, NewBooking, CreateBookingRequest};
+use crate::domain::booking::{Booking, CreateBookingRequest, InternalCreateBookingRequest, NewBooking};
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use chrono::Utc;
@@ -6,10 +6,10 @@ use chrono::Utc;
 pub struct BookingRepository;
 
 impl BookingRepository {
-    // สร้างการจองใหม่
+     // สร้างการจองใหม่ - ใช้ InternalCreateBookingRequest
     pub fn create_booking(
         conn: &mut SqliteConnection,
-        request: CreateBookingRequest,
+        request: InternalCreateBookingRequest,
     ) -> Result<Booking, diesel::result::Error> {
         use crate::infrastructure::schema::bookings;
         

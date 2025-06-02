@@ -1,15 +1,15 @@
 // src/application/booking_service.rs
-use crate::domain::booking::{Booking, CreateBookingRequest, CancelBookingRequest};
+use crate::domain::booking::{Booking, CancelBookingRequest, CreateBookingRequest, InternalCreateBookingRequest};
 use crate::infrastructure::booking_repository::BookingRepository;
 use diesel::sqlite::SqliteConnection;
 
 pub struct BookingService;
 
 impl BookingService {
-    // สร้างการจอง
+     // สร้างการจอง - ใช้ InternalCreateBookingRequest แทน
     pub fn create_booking(
         conn: &mut SqliteConnection,
-        request: CreateBookingRequest,
+        request: InternalCreateBookingRequest,
     ) -> Result<Booking, String> {
         // ตรวจสอบพื้นฐาน
         if request.start_time >= request.end_time {
