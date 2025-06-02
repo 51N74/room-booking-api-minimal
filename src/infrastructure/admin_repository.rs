@@ -18,16 +18,13 @@ impl AdminRepository {
         AdminRepository { pool }
     }
 
-    pub async fn register_admin(&self, new_admin_data: NewAdmin<'_>) -> Result<Admin, String> {
-        let mut conn = self
-            .pool
-            .get()
-            .map_err(|e| format!("Failed to get DB connection: {}", e))?;
+    pub async fn register_admin(&self, conn: &mut SqliteConnection,new_admin_data: NewAdmin<'_>) -> Result<Admin, String> {
+        
 
         // ตรวจสอบว่า username ซ้ำหรือไม่ (เป็น Good Practice)
         let existing_admin_result = admins::table
             .filter(admins::username.eq(&new_admin_data.username))
-            .first::<Admin>(&mut conn);
+            .first::<Admin>(conn);
 
         match existing_admin_result {
             Ok(_) => {
@@ -46,12 +43,12 @@ impl AdminRepository {
 
         diesel::insert_into(admins::table)
             .values(&new_admin_data)
-            .execute(&mut conn)
+            .execute(conn)
             .map_err(|e| format!("Failed to insert user into DB: {}", e))?;
 
         let inserted_admin = admins::table
             .filter(admins::username.eq(&new_admin_data.username))
-            .first::<Admin>(&mut conn)
+            .first::<Admin>(conn)
             .map_err(|e| format!("Failed to retrieve newly inserted user: {}", e))?;
 
         Ok(inserted_admin)

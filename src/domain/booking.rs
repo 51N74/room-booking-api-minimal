@@ -41,7 +41,7 @@ pub struct CreateBookingRequest {
 pub struct CancelBookingRequest {
     pub user_id: i32,
 }
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct InternalCreateBookingRequest {
     pub room_id: i32,
     pub user_id: i32, // จะได้จาก JWT Token

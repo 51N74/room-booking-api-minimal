@@ -4,6 +4,7 @@ use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 
 
+use crate::app_state::AppState;
 use crate::application::user_service::UserService;
 // นำเข้า Struct จาก Domain Layer
 use crate::domain::user::LoginCredentials;
@@ -34,7 +35,7 @@ pub struct LoginResponse {
 
 // Handler สำหรับการลงทะเบียนผู้ใช้ (POST /register)
 pub async fn register_user_handler(
-    State(user_service): State<UserService>,
+    State(app_state): State<AppState>,
     Json(payload): Json<CreateUserRequest>, // รับ CreateUserRequest
 ) -> impl IntoResponse {
     // แปลง CreateUserRequest ไปเป็น RegisterUserRequest
@@ -44,7 +45,7 @@ pub async fn register_user_handler(
         password: payload.password,
     };
 
-    match user_service.register_user(user_request).await {
+    match app_state.user_service.register_user(user_request).await {
         Ok(user) => (StatusCode::CREATED, Json(user)).into_response(), // UserEntity (User) derive Serialize
         Err(e) => (StatusCode::BAD_REQUEST, e).into_response(), // <<-- เปลี่ยนเป็น BAD_REQUEST สำหรับ Error ทั่วไป เช่น username ซ้ำ
     }
@@ -52,7 +53,7 @@ pub async fn register_user_handler(
 
 // Handler สำหรับการ Login ผู้ใช้ (POST /login)
 pub async fn login_user_handler(
-    State(user_service): State<UserService>,
+    State(app_state): State<AppState>,
     Json(payload): Json<LoginUserRequest>,
 ) -> Result<Json<LoginResponse>, (StatusCode, String)> {
     let login_credentials = LoginCredentials {
@@ -60,7 +61,7 @@ pub async fn login_user_handler(
         password: payload.password,
     };
 
-    match user_service.login_user(login_credentials).await {
+    match app_state.user_service.login_user(login_credentials).await {
         Ok(user_id) => {
             // สร้าง JWT Token
             match JwtService::create_token(user_id, "user") {
