@@ -1,80 +1,49 @@
 // src/application/booking_service.rs
-
-use chrono::{NaiveDateTime, Utc};
-
-use crate::domain::booking::{Booking, CreateBookingRequest, BookingStatus, NewBooking}; // <<-- ยังคง import BookingStatus และ NewBooking
+use crate::domain::booking::{Booking, CreateBookingRequest, CancelBookingRequest};
 use crate::infrastructure::booking_repository::BookingRepository;
-use crate::infrastructure::room_repository::RoomRepository;
+use diesel::sqlite::SqliteConnection;
 
-pub struct BookingService {
-    booking_repo: BookingRepository,
-    room_repo: RoomRepository,
-}
+pub struct BookingService;
 
 impl BookingService {
-    pub fn new(booking_repo: BookingRepository, room_repo: RoomRepository) -> Self {
-        BookingService { booking_repo, room_repo }
-    }
-
-    pub async fn create_booking(&self, request: CreateBookingRequest) -> Result<Booking, String> {
-        // ... (validation logic remains) ...
-        let room = self.room_repo.get_room_by_id(request.room_id).await?;
-
+    // สร้างการจอง
+    pub fn create_booking(
+        conn: &mut SqliteConnection,
+        request: CreateBookingRequest,
+    ) -> Result<Booking, String> {
+        // ตรวจสอบพื้นฐาน
         if request.start_time >= request.end_time {
-            return Err("Start time must be before end time".to_string());
+            return Err("เวลาเริ่มต้องมาก่อนเวลาสิ้นสุด".to_string());
         }
 
-        let overlapping_bookings = self.booking_repo.get_overlapping_bookings(
-            request.room_id,
-            request.start_time,
-            request.end_time,
-            None,
-        ).await?;
-
-        if !overlapping_bookings.is_empty() {
-            return Err("Room is not available for the requested time slot".to_string());
-        }
-
-        let new_booking = NewBooking {
-            room_id: request.room_id,
-            user_id: request.user_id,
-            start_time: request.start_time,
-            end_time: request.end_time,
-            status: BookingStatus::Pending, // <<-- ยังคงมี status
-        };
-
-        self.booking_repo.create_booking(new_booking).await
+        BookingRepository::create_booking(conn, request)
+            .map_err(|e| format!("ไม่สามารถสร้างการจองได้: {}", e))
     }
 
-    pub async fn get_booking_by_id(&self, booking_id: i32) -> Result<Booking, String> {
-        self.booking_repo.get_booking_by_id(booking_id).await
+    // ยกเลิกการจอง
+    pub fn cancel_booking(
+        conn: &mut SqliteConnection,
+        booking_id: i32,
+        request: CancelBookingRequest,
+    ) -> Result<bool, String> {
+        BookingRepository::cancel_booking(conn, booking_id, request.user_id)
+            .map_err(|e| format!("ไม่สามารถยกเลิกการจองได้: {}", e))
     }
 
-    pub async fn get_all_bookings(&self) -> Result<Vec<Booking>, String> {
-        self.booking_repo.get_all_bookings().await
+    // ดึงการจองของผู้ใช้
+    pub fn get_user_bookings(
+        conn: &mut SqliteConnection,
+        user_id: i32,
+    ) -> Result<Vec<Booking>, String> {
+        BookingRepository::get_user_bookings(conn, user_id)
+            .map_err(|e| format!("ไม่สามารถดึงข้อมูลการจองได้: {}", e))
     }
 
-    // Use Case: อัปเดตสถานะการจอง (ยังคงมี)
-    pub async fn update_booking_status(&self, booking_id: i32, new_status: BookingStatus) -> Result<Booking, String> {
-        let existing_booking = self.booking_repo.get_booking_by_id(booking_id).await?;
-
-        // ... (business rules for status change remain) ...
-        match (existing_booking.status, new_status.clone()) {
-            (BookingStatus::Cancelled, _) => return Err("Cannot change status of a cancelled booking".to_string()),
-            (_, BookingStatus::Pending) => return Err("Cannot revert to pending status from other states".to_string()),
-            _ => { /* OK to proceed */ }
-        }
-
-        self.booking_repo.update_booking_status(booking_id, new_status).await
-    }
-
-    // Use Case: ยกเลิกการจอง (ยังคงมี)
-    pub async fn cancel_booking(&self, booking_id: i32) -> Result<Booking, String> {
-        self.update_booking_status(booking_id, BookingStatus::Cancelled).await
-    }
-
-    // Use Case: ยืนยันการจอง (ยังคงมี)
-    pub async fn confirm_booking(&self, booking_id: i32) -> Result<Booking, String> {
-        self.update_booking_status(booking_id, BookingStatus::Confirmed).await
+    // ดึงการจองทั้งหมด
+    pub fn get_all_bookings(
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<Booking>, String> {
+        BookingRepository::get_all_bookings(conn)
+            .map_err(|e| format!("ไม่สามารถดึงข้อมูลการจองทั้งหมดได้: {}", e))
     }
 }

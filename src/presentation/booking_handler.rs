@@ -1,96 +1,70 @@
-// src/presentation/booking_handler.rs
-
-use axum::{extract::{State, Path}, Json, http::StatusCode, response::IntoResponse};
-use serde::{Deserialize, Serialize};
-use chrono::NaiveDateTime;
-
+use axum::{
+    extract::{Path, State},
+    response::Json,
+    http::StatusCode,
+};
+use serde_json::{json, Value};
 use crate::application::booking_service::BookingService;
-use crate::domain::booking::{Booking, CreateBookingRequest, BookingStatus}; // <<-- ยังคง import BookingStatus
+use crate::domain::booking::{CreateBookingRequest, CancelBookingRequest, Booking};
+use crate::infrastructure::database::DbPool;
 
-// Request Body สำหรับการสร้างการจอง (ยังคงมี)
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct CreateBookingPayload {
-    pub room_id: i32,
-    pub user_id: i32,
-    pub start_time: NaiveDateTime,
-    pub end_time: NaiveDateTime,
-}
-
-// Request Body สำหรับการอัปเดตสถานะการจอง (ยังคงมี)
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct UpdateBookingStatusPayload {
-    pub status: BookingStatus, // <<-- ยังคงมี status
-}
-
-// Handler สำหรับสร้างการจองใหม่ (POST /bookings) (ยังคงมี)
+// POST /bookings - สร้างการจอง
 pub async fn create_booking_handler(
-    State(booking_service): State<BookingService>,
-    Json(payload): Json<CreateBookingPayload>,
-) -> impl IntoResponse {
-    let request = CreateBookingRequest {
-        room_id: payload.room_id,
-        user_id: payload.user_id,
-        start_time: payload.start_time,
-        end_time: payload.end_time,
-    };
-
-    match booking_service.create_booking(request).await {
-        Ok(booking) => (StatusCode::CREATED, Json(booking)).into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    State(pool): State<DbPool>,
+    Json(request): Json<CreateBookingRequest>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let mut conn = pool.get().map_err(|_| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"})))
+    })?;
+    
+    match BookingService::create_booking(&mut conn, request) {
+        Ok(booking) => Ok(Json(json!(booking))),
+        Err(err) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": err})))),
     }
 }
 
-// Handler สำหรับดึงการจองตาม ID (GET /bookings/:id) (ยังคงมี)
-pub async fn get_booking_by_id_handler(
-    State(booking_service): State<BookingService>,
-    Path(booking_id): Path<i32>,
-) -> impl IntoResponse {
-    match booking_service.get_booking_by_id(booking_id).await {
-        Ok(booking) => (StatusCode::OK, Json(booking)).into_response(),
-        Err(e) => (StatusCode::NOT_FOUND, e).into_response(),
-    }
-}
-
-// Handler สำหรับดึงการจองทั้งหมด (GET /bookings) (ยังคงมี)
-pub async fn get_all_bookings_handler(
-    State(booking_service): State<BookingService>,
-) -> impl IntoResponse {
-    match booking_service.get_all_bookings().await {
-        Ok(bookings) => (StatusCode::OK, Json(bookings)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
-    }
-}
-
-// Handler สำหรับอัปเดตสถานะการจอง (PUT /bookings/:id/status) (ยังคงมี)
-pub async fn update_booking_status_handler(
-    State(booking_service): State<BookingService>,
-    Path(booking_id): Path<i32>,
-    Json(payload): Json<UpdateBookingStatusPayload>,
-) -> impl IntoResponse {
-    match booking_service.update_booking_status(booking_id, payload.status).await {
-        Ok(booking) => (StatusCode::OK, Json(booking)).into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
-    }
-}
-
-// Handler สำหรับยกเลิกการจอง (PUT /bookings/:id/cancel) (ยังคงมี)
+// DELETE /bookings/{id} - ยกเลิกการจอง
 pub async fn cancel_booking_handler(
-    State(booking_service): State<BookingService>,
+    State(pool): State<DbPool>,
     Path(booking_id): Path<i32>,
-) -> impl IntoResponse {
-    match booking_service.cancel_booking(booking_id).await {
-        Ok(booking) => (StatusCode::OK, Json(booking)).into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+    Json(request): Json<CancelBookingRequest>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let mut conn = pool.get().map_err(|_| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"})))
+    })?;
+    
+    match BookingService::cancel_booking(&mut conn, booking_id, request) {
+        Ok(true) => Ok(Json(json!({"message": "ยกเลิกการจองสำเร็จ"}))),
+        Ok(false) => Err((StatusCode::NOT_FOUND, Json(json!({"error": "ไม่พบการจองหรือไม่มีสิทธิ์ยกเลิก"})))),
+        Err(err) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": err})))),
     }
 }
 
-// Handler สำหรับยืนยันการจอง (PUT /bookings/:id/confirm) (ยังคงมี)
-pub async fn confirm_booking_handler(
-    State(booking_service): State<BookingService>,
-    Path(booking_id): Path<i32>,
-) -> impl IntoResponse {
-    match booking_service.confirm_booking(booking_id).await {
-        Ok(booking) => (StatusCode::OK, Json(booking)).into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e).into_response(),
+// GET /bookings/user/{user_id} - ดึงการจองของผู้ใช้
+pub async fn get_user_bookings_handler(
+    State(pool): State<DbPool>,
+    Path(user_id): Path<i32>,
+) -> Result<Json<Vec<Booking>>, (StatusCode, Json<Value>)> {
+    let mut conn = pool.get().map_err(|_| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"})))
+    })?;
+    
+    match BookingService::get_user_bookings(&mut conn, user_id) {
+        Ok(bookings) => Ok(Json(bookings)),
+        Err(err) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": err})))),
+    }
+}
+
+// GET /bookings - ดึงการจองทั้งหมด (สำหรับ Admin)
+pub async fn get_all_bookings_handler(
+    State(pool): State<DbPool>,
+) -> Result<Json<Vec<Booking>>, (StatusCode, Json<Value>)> {
+    let mut conn = pool.get().map_err(|_| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "ไม่สามารถเชื่อมต่อฐานข้อมูลได้"})))
+    })?;
+    
+    match BookingService::get_all_bookings(&mut conn) {
+        Ok(bookings) => Ok(Json(bookings)),
+        Err(err) => Err((StatusCode::BAD_REQUEST, Json(json!({"error": err})))),
     }
 }
