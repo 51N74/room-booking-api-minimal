@@ -1,67 +1,103 @@
-// use crate::domain::booking::AddBookingEntity;
-// use crate::domain::booking::BookingEntity;
-// use anyhow::Ok;
-// use anyhow::Result;
-// use diesel::SqliteConnection;
-// use diesel::prelude::*;
+use crate::domain::booking::{Booking, NewBooking, CreateBookingRequest};
+use diesel::prelude::*;
+use diesel::sqlite::SqliteConnection;
+use chrono::Utc;
 
-// use super::schema::bookings;
-// #[derive(Debug, Clone)]
-// pub struct BookingRepository {
-//     pool: diesel::r2d2::Pool<diesel::r2d2::ConnectionManager<SqliteConnection>>,
-// }
+pub struct BookingRepository;
 
-// impl BookingRepository {
-//     pub fn new(database_url: &str) -> Self {
-//         let manager = diesel::r2d2::ConnectionManager::<SqliteConnection>::new(database_url);
-//         let pool = diesel::r2d2::Pool::builder()
-//             .build(manager)
-//             .expect("Failed to create pool");
-//         BookingRepository { pool }
-//     }
+impl BookingRepository {
+    // สร้างการจองใหม่
+    pub fn create_booking(
+        conn: &mut SqliteConnection,
+        request: CreateBookingRequest,
+    ) -> Result<Booking, diesel::result::Error> {
+        use crate::infrastructure::schema::bookings;
+        
+        let new_booking = NewBooking {
+            room_id: request.room_id,
+            user_id: request.user_id,
+            start_time: request.start_time.naive_utc(),
+            end_time: request.end_time.naive_utc(),
+            status: "active".to_string(),
+            created_at: Utc::now().naive_utc(),
+            updated_at: Utc::now().naive_utc(),
+        };
 
-//     pub async fn create_booking(&self, booking: AddBookingEntity) -> Result<BookingEntity> {
-//         let new_booking = (
-//             bookings::user_id.eq(booking.user_id),
-//             bookings::room_id.eq(booking.room_id),
-//             bookings::start_time.eq(booking.start_time),
-//             bookings::end_time.eq(booking.end_time),
-//         );
+        diesel::insert_into(bookings::table)
+            .values(&new_booking)
+            .execute(conn)?;
 
-//         let mut conn = self.pool.get()?;
+        // ดึงข้อมูลการจองที่เพิ่งสร้าง
+        bookings::table
+            .order(bookings::id.desc())
+            .select(Booking::as_select())
+            .first(conn)
+    }
 
-//         diesel::insert_into(bookings::table)
-//             .values(&new_booking)
-//             .execute(&mut conn)
-//             .map_err(|e| anyhow::anyhow!("Failed to insert booking: {}", e))?;
+    // ยกเลิกการจอง (Soft Delete)
+    pub fn cancel_booking(
+        conn: &mut SqliteConnection,
+        booking_id: i32,
+        user_id: i32,
+    ) -> Result<bool, diesel::result::Error> {
+        use crate::infrastructure::schema::bookings;
 
-//         let id = diesel::select(diesel::dsl::sql::<diesel::sql_types::Integer>(
-//             "last_insert_rowid()",
-//         ))
-//         .get_result::<i32>(&mut conn)
-//         .map_err(|e| anyhow::anyhow!("Failed to get last insert id: {}", e))?;
+        let affected_rows = diesel::update(
+            bookings::table
+                .filter(bookings::id.eq(booking_id))
+                .filter(bookings::user_id.eq(user_id))
+                .filter(bookings::deleted_at.is_null())
+        )
+        .set((
+            bookings::status.eq("cancelled"),
+            bookings::deleted_at.eq(Some(Utc::now().naive_utc())),
+            bookings::updated_at.eq(Utc::now().naive_utc()),
+        ))
+        .execute(conn)?;
 
-//         Ok(BookingEntity {
-//             id,
-//             user_id: booking.user_id,
-//             room_id: booking.room_id,
-//             start_time: booking.start_time,
-//             end_time: booking.end_time,
-//             created_at: booking.created_at,
-//             updated_at: booking.updated_at,
-//             deleted_at: booking.deleted_at,
-//         })
-//     }
+        Ok(affected_rows > 0)
+    }
 
-//     pub async fn cancel_booking(&self, booking_id: i32) -> Result<(BookingEntity)> {
-//         let pool = self.pool.clone();
-//         let mut conn = pool.get()?;
+    // ดึงการจองทั้งหมดของผู้ใช้
+    pub fn get_user_bookings(
+        conn: &mut SqliteConnection,
+        user_id: i32,
+    ) -> Result<Vec<Booking>, diesel::result::Error> {
+        use crate::infrastructure::schema::bookings;
 
-//         let deleted_booking = bookings::table
-//             .filter(bookings::id.eq(booking_id))
-//             .first::<BookingEntity>(&mut conn)
-//             .optional()?
-//             .ok_or_else(|| anyhow::anyhow!("Room with id {} not found", booking_id))?;
-//         Ok(deleted_booking)
-//     }
-// }
+        bookings::table
+            .filter(bookings::user_id.eq(user_id))
+            .filter(bookings::deleted_at.is_null())
+            .order(bookings::created_at.desc())
+            .select(Booking::as_select())
+            .load(conn)
+    }
+
+    // ดึงการจองทั้งหมด (สำหรับ Admin)
+    pub fn get_all_bookings(
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<Booking>, diesel::result::Error> {
+        use crate::infrastructure::schema::bookings;
+
+        bookings::table
+            .filter(bookings::deleted_at.is_null())
+            .order(bookings::created_at.desc())
+            .select(Booking::as_select())
+            .load(conn)
+    }
+
+    // ดึงการจองตาม ID
+    pub fn get_booking_by_id(
+        conn: &mut SqliteConnection,
+        booking_id: i32,
+    ) -> Result<Option<Booking>, diesel::result::Error> {
+        use crate::infrastructure::schema::bookings;
+
+        bookings::table
+            .filter(bookings::id.eq(booking_id))
+            .filter(bookings::deleted_at.is_null())
+            .select(Booking::as_select())
+            .first(conn)
+            .optional()
+    }
+}

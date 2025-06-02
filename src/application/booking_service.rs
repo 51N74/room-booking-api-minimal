@@ -1,25 +1,49 @@
-// use crate::{
-//     domain::booking::{AddBookingEntity, BookingEntity},
-//     infrastructure::{
-//         booking_repository::BookingRepository
-//     },
-// };
+// src/application/booking_service.rs
+use crate::domain::booking::{Booking, CreateBookingRequest, CancelBookingRequest};
+use crate::infrastructure::booking_repository::BookingRepository;
+use diesel::sqlite::SqliteConnection;
 
-// use anyhow::Result;
-// pub struct BookingService {
-//     booking_repo: BookingRepository,
-// }
+pub struct BookingService;
 
-// impl BookingService {
-//     pub fn new(booking_repo: BookingRepository) -> Self {
-//         BookingService { booking_repo }
-//     }
+impl BookingService {
+    // สร้างการจอง
+    pub fn create_booking(
+        conn: &mut SqliteConnection,
+        request: CreateBookingRequest,
+    ) -> Result<Booking, String> {
+        // ตรวจสอบพื้นฐาน
+        if request.start_time >= request.end_time {
+            return Err("เวลาเริ่มต้องมาก่อนเวลาสิ้นสุด".to_string());
+        }
 
-//     pub async fn create_booking(&self, booking: AddBookingEntity) -> Result<BookingEntity> {
-//         self.booking_repo.create_booking(booking).await
-//     }
+        BookingRepository::create_booking(conn, request)
+            .map_err(|e| format!("ไม่สามารถสร้างการจองได้: {}", e))
+    }
 
-//     pub async fn cancel_booking(&self, booking_id: i32) -> Result<BookingEntity> {
-//         self.booking_repo.cancel_booking(booking_id).await
-//     }
-// }
+    // ยกเลิกการจอง
+    pub fn cancel_booking(
+        conn: &mut SqliteConnection,
+        booking_id: i32,
+        request: CancelBookingRequest,
+    ) -> Result<bool, String> {
+        BookingRepository::cancel_booking(conn, booking_id, request.user_id)
+            .map_err(|e| format!("ไม่สามารถยกเลิกการจองได้: {}", e))
+    }
+
+    // ดึงการจองของผู้ใช้
+    pub fn get_user_bookings(
+        conn: &mut SqliteConnection,
+        user_id: i32,
+    ) -> Result<Vec<Booking>, String> {
+        BookingRepository::get_user_bookings(conn, user_id)
+            .map_err(|e| format!("ไม่สามารถดึงข้อมูลการจองได้: {}", e))
+    }
+
+    // ดึงการจองทั้งหมด
+    pub fn get_all_bookings(
+        conn: &mut SqliteConnection,
+    ) -> Result<Vec<Booking>, String> {
+        BookingRepository::get_all_bookings(conn)
+            .map_err(|e| format!("ไม่สามารถดึงข้อมูลการจองทั้งหมดได้: {}", e))
+    }
+}
