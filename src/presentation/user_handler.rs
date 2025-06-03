@@ -64,7 +64,7 @@ pub async fn login_user_handler(
     match app_state.user_service.login_user(login_credentials).await {
         Ok(user_id) => {
             // สร้าง JWT Token
-            match JwtService::create_token(user_id, "user") {
+            match app_state.jwt_service.create_token(user_id, "user") {
                 Ok(token) => {
                     let response = LoginResponse {
                         user_id,

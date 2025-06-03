@@ -1,4 +1,4 @@
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use serde::{Deserialize, Serialize};
 use std::env;
 use chrono::{Duration, Utc};
@@ -11,38 +11,58 @@ pub struct Claims {
     pub iat: usize,       // issued at
 }
 
-pub struct JwtService;
+#[derive(Clone)]
+pub struct JwtService {
+    encoding_key: EncodingKey,
+    decoding_key: DecodingKey,
+    validation: Validation, // เพิ่ม field สำหรับ Validation
+}
 
 impl JwtService {
-    // สร้าง JWT Token
-    pub fn create_token(user_id: i32, role: &str) -> Result<String, jsonwebtoken::errors::Error> {
-        let secret = env::var("JWT_SECRET").unwrap_or_else(|_| "your-secret-key".to_string());
-        
+     pub fn new(secret: &str) -> Self {
+        let encoding_key = EncodingKey::from_secret(secret.as_bytes());
+        let decoding_key = DecodingKey::from_secret(secret.as_bytes());
+
+        let mut validation = Validation::new(Algorithm::HS512); // ใช้ Algorithm เดียวกันกับตอน encode
+        validation.validate_exp = true; // ตรวจสอบวันหมดอายุ (ควรเป็น true)
+        validation.leeway = 60; // อนุญาตให้มีเวลาเหลื่อมได้ 60 วินาที
+
+        JwtService {
+            encoding_key,
+            decoding_key,
+            validation,
+        }
+    }
+
+    // *** แก้ไข: เพิ่ม &self และใช้ self.encoding_key ***
+    pub fn create_token(&self, user_id: i32, role: &str) -> Result<String, String> {
         let now = Utc::now();
-        let expire = now + Duration::hours(24); // Token หมดอายุใน 24 ชั่วโมง
-        
+        let expires_in = Duration::days(1); // 24 ชั่วโมง
+        let exp = (now + expires_in).timestamp();
+        let iat = now.timestamp();
+
         let claims = Claims {
             sub: user_id.to_string(),
             role: role.to_string(),
-            exp: expire.timestamp() as usize,
-            iat: now.timestamp() as usize,
+            exp: exp as usize,
+            iat: iat as usize,
         };
 
-        encode(
-            &Header::default(),
-            &claims,
-            &EncodingKey::from_secret(secret.as_ref()),
-        )
+        let header = Header::new(Algorithm::HS512);
+        // *** ใช้ &self.encoding_key แทน Self::get_secret() ***
+        encode(&header, &claims, &self.encoding_key)
+            .map_err(|e| format!("Failed to create token: {}", e))
     }
 
-    // ตรวจสอบ JWT Token
-    pub fn verify_token(token: &str) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
-        let secret = env::var("JWT_SECRET").unwrap_or_else(|_| "your-secret-key".to_string());
-        
+   // *** แก้ไข: เพิ่ม &self และใช้ self.decoding_key กับ self.validation ***
+    pub fn decode_token(&self, token: &str) -> Result<Claims, String> {
+        // *** ใช้ &self.decoding_key และ &self.validation แทนการสร้างใหม่จาก env variable ***
         decode::<Claims>(
             token,
-            &DecodingKey::from_secret(secret.as_ref()),
-            &Validation::default(),
+            &self.decoding_key,
+            &self.validation,
         )
+        .map(|data| data.claims)
+        .map_err(|e| format!("Invalid token: {}", e))
     }
 }

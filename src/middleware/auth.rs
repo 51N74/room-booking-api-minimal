@@ -1,92 +1,144 @@
 // src/middleware/auth.rs
-use axum::{
-    extract::{Request, State},
-    http::{header, StatusCode},
-    middleware::Next,
-    response::Response,
-    Json,
-};
-use serde_json::json;
-use crate::infrastructure::jwt::{JwtService, Claims};
 
-// Middleware สำหรับตรวจสอบว่า User ล็อกอินแล้วหรือไม่
+use axum::{
+    body::Body, extract::{Request, State}, http::{header, HeaderValue, StatusCode}, middleware::{self, Next}, response::{IntoResponse, Response}, Json
+};
+use axum_extra::extract::cookie::{CookieJar, Cookie}; // <--- import จาก axum-extra
+use jsonwebtoken::{DecodingKey, Validation, TokenData};
+use serde_json::json;
+use crate::{app_state, infrastructure::jwt::{Claims, JwtService}}; // ใช้ JwtService และ Claims ของคุณ
+use crate::app_state::AppState; // เพื่อเข้าถึง Secret หรืออื่นๆ ถ้าจำเป็น
+
+// Middleware สำหรับตรวจสอบ Token จาก Cookie (สำหรับผู้ใช้ทั่วไป)
 pub async fn auth_middleware(
-    mut req: Request,
+    // jar: CookieJar, // <--- NOTE: หากไม่ใช้ Cookie แล้ว สามารถลบ CookieJar ออกไปได้
+    // เราจะดึง Token จาก Authorization header แทน
+    State(app_state): State<AppState>,
+    mut request: Request<Body>, // รับ Request<Body>
     next: Next,
-) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
-    // ดึง Authorization header
-    let auth_header = req
-        .headers()
-        .get(header::AUTHORIZATION)
+) -> Result<Response<Body>, Response<Body>> { // คืนค่า Response<Body>
+    eprintln!("\n--- DEBUG: auth_middleware entered ---");
+    // 1. ดึง Token จาก Authorization Header (Bearer Token)
+    let auth_header = request.headers().get(header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok());
 
-    let token = match auth_header {
-        Some(header) if header.starts_with("Bearer ") => {
-            &header[7..] // ตัด "Bearer " ออก
+     let token = if let Some(header_value) = auth_header {
+        eprintln!("DEBUG: Authorization header found: '{}'", header_value); // <--- Debug Point 2
+        if header_value.starts_with("Bearer ") {
+            let extracted_token = header_value[7..].to_owned();
+            eprintln!("DEBUG: Extracted token: '{}'", extracted_token); // <--- Debug Point 3
+            Some(extracted_token)
+        } else {
+            eprintln!("DEBUG: Authorization header found, but missing 'Bearer ' prefix."); // <--- Debug Point 4
+            None
         }
-        _ => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(json!({"error": "Missing or invalid authorization header"})),
-            ));
-        }
+    } else {
+        eprintln!("DEBUG: Authorization header NOT found."); // <--- Debug Point 5
+        None
     };
 
-    // ตรวจสอบ Token
-    match JwtService::verify_token(token) {
-        Ok(token_data) => {
-            // เพิ่ม Claims ลงใน Request Extensions
-            req.extensions_mut().insert(token_data.claims);
-            Ok(next.run(req).await)
+    if let Some(token) = token {
+        // 2. Decode และ Validate Token ด้วย JwtService
+        // *** แก้ไข: ใช้ app_state.jwt_service.decode_token() ***
+        match app_state.jwt_service.decode_token(&token) {
+            Ok(claims) => {
+                // 3. ตรวจสอบ Role (ถ้าจำเป็นสำหรับ Middleware นี้)
+                // Middleware นี้จะใช้สำหรับ User ทั่วไปเข้าถึง resource
+                 eprintln!("DEBUG: Token decoded successfully. Claims: {:?}", claims);
+                if claims.role != "user" {
+                    eprintln!("DEBUG: Role mismatch. Expected 'user', got '{}'.", claims.role);
+                    let forbidden_response = (
+                        StatusCode::FORBIDDEN,
+                        Json(json!({"error": "Forbidden: Insufficient permissions."})),
+                    ).into_response(); // into_response() ก็พอ
+                    return Err(forbidden_response.into_response()); // map_into_response เพื่อแปลง Body Type
+                }
+                eprintln!("DEBUG: Role 'user' confirmed. Proceeding to next handler.");
+                // 4. เก็บ Claims ลงใน Request Extensions
+                request.extensions_mut().insert(claims);
+                // 5. ส่ง Request ต่อไปยัง Handler ถัดไป
+                Ok(next.run(request).await)
+            },
+            Err(e) => {
+                eprintln!("ERROR: Token decode failed: {:?}", e);
+                // Token ไม่ถูกต้อง/หมดอายุ
+                
+                let unauthorized_response = (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({"error": format!("Unauthorized: Invalid token. {}", e)})),
+                ).into_response();
+                Err(unauthorized_response.into_response()) // map_into_response เพื่อแปลง Body Type
+            }
         }
-        Err(_) => Err((
+    } else {
+        eprintln!("ERROR: No token found in Authorization header. Returning 401."); 
+        // ไม่มี Token ใน Header
+        let unauthorized_response = (
             StatusCode::UNAUTHORIZED,
-            Json(json!({"error": "Invalid or expired token"})),
-        )),
+            Json(json!({"error": "Unauthorized: Authorization token missing or malformed."})),
+        ).into_response();
+        Err(unauthorized_response.into_response())
     }
 }
 
-// Middleware สำหรับตรวจสอบว่าเป็น Admin หรือไม่
+// Middleware สำหรับ Admin (คล้ายกัน แต่ตรวจสอบ role = "admin")
 pub async fn admin_middleware(
-    mut req: Request,
+    State(app_state): State<AppState>,
+    mut request: Request<Body>,
     next: Next,
-) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
-    // ดึง Authorization header
-    let auth_header = req
-        .headers()
-        .get(header::AUTHORIZATION)
+) -> Result<Response<Body>, Response<Body>> {
+    eprintln!("\n--- DEBUG: auth_middleware entered ---"); 
+    let auth_header = request.headers().get(header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok());
 
-    let token = match auth_header {
-        Some(header) if header.starts_with("Bearer ") => {
-            &header[7..] // ตัด "Bearer " ออก
+    let token = if let Some(header_value) = auth_header {
+        eprintln!("DEBUG: Authorization header found: '{}'", header_value); // <--- Debug Point 2
+        if header_value.starts_with("Bearer ") {
+            let extracted_token = header_value[7..].to_owned();
+            eprintln!("DEBUG: Extracted token: '{}'", extracted_token); // <--- Debug Point 3
+            Some(extracted_token)
+        } else {
+            eprintln!("DEBUG: Authorization header found, but missing 'Bearer ' prefix."); // <--- Debug Point 4
+            None
         }
-        _ => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(json!({"error": "Missing or invalid authorization header"})),
-            ));
-        }
+    } else {
+        eprintln!("DEBUG: Authorization header NOT found."); // <--- Debug Point 5
+        None
     };
 
-    // ตรวจสอบ Token
-    match JwtService::verify_token(token) {
-        Ok(token_data) => {
-            // ตรวจสอบว่าเป็น Admin หรือไม่
-            if token_data.claims.role != "admin" {
-                return Err((
-                    StatusCode::FORBIDDEN,
-                    Json(json!({"error": "Admin access required"})),
-                ));
+
+    if let Some(token) = token {
+        match app_state.jwt_service.decode_token(&token) { // *** ใช้ decode_token ***
+            Ok(claims) => {
+                eprintln!("DEBUG: Token decoded successfully. Claims: {:?}", claims);
+                if claims.role != "admin" { // ตรวจสอบ role เป็น "admin"
+                eprintln!("DEBUG: Role mismatch. Expected 'user', got '{}'.", claims.role);
+                    let forbidden_response = (
+                        StatusCode::FORBIDDEN,
+                        Json(json!({"error": "Forbidden: Insufficient permissions."})),
+                    ).into_response();
+                    return Err(forbidden_response.into_response());
+                }
+                eprintln!("DEBUG: Role 'user' confirmed. Proceeding to next handler.");
+                request.extensions_mut().insert(claims);
+                Ok(next.run(request).await)
+            },
+            Err(e) => {
+                eprintln!("ERROR: Token decode failed: {:?}", e);
+                let unauthorized_response = (
+                    StatusCode::UNAUTHORIZED,
+                    Json(json!({"error": format!("Unauthorized: Invalid token. {}", e)})),
+                ).into_response();
+                Err(unauthorized_response.into_response())
             }
-            
-            // เพิ่ม Claims ลงใน Request Extensions
-            req.extensions_mut().insert(token_data.claims);
-            Ok(next.run(req).await)
         }
-        Err(_) => Err((
+    } else {
+        eprintln!("ERROR: No token found in Authorization header. Returning 401.");
+        let unauthorized_response = (
             StatusCode::UNAUTHORIZED,
-            Json(json!({"error": "Invalid or expired token"})),
-        )),
+            Json(json!({"error": "Unauthorized: Authorization token missing or malformed."})),
+        ).into_response();
+        Err(unauthorized_response.into_response())
     }
+
 }

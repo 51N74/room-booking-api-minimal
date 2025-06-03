@@ -1,23 +1,20 @@
-
 use anyhow::Result;
 use axum::{
     Router,
     extract::State,
     middleware,
     routing::{delete, get, patch, post},
+    body::Body, // *** เพิ่ม import นี้ ***
 };
-use room_booking_api_minimal::app_state::AppState;
+use room_booking_api_minimal::{app_state::AppState, infrastructure::jwt::JwtService};
 
 use room_booking_api_minimal::{
     application::{
         admin_service::AdminService, room_service::RoomService, user_service::UserService,
     },
     infrastructure::{
-        admin_repository::AdminRepository,
-        database::{establish_connection_pool},
-        room_repository::RoomRepository,
-        user_repository::UserRepository,
-        database::DbPool,
+        admin_repository::AdminRepository, database::DbPool, database::establish_connection_pool,
+        room_repository::RoomRepository, user_repository::UserRepository,
     },
     middleware::auth::{admin_middleware, auth_middleware},
     presentation::{
@@ -30,16 +27,16 @@ use room_booking_api_minimal::{
             add_room_handler, delete_room_handler, get_all_active_rooms_handler,
             get_all_room_handler, get_room_by_id_handler, update_room_handler,
         },
-        user_handler::{login_user_handler, register_user_handler},
+        user_handler::{login_user_handler, register_user_handler},test_handler::{test_protected_user_route, test_protected_admin_route}
     },
 };
 use tokio::net::TcpListener;
 
-
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
-
+    // ดึง Secret Key จาก Environment Variable
+    let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set in .env file");
     // สร้าง DB Connection Pool
     let db_pool = establish_connection_pool();
 
@@ -55,6 +52,8 @@ async fn main() -> Result<()> {
     let admin_repo = AdminRepository::new(db_pool.clone());
     let admin_service = AdminService::new(admin_repo);
 
+     // *** สร้าง JwtService instance ***
+    let jwt_service = JwtService::new(&jwt_secret);
 
     // *** สร้าง AppState instance (ตัวแปร app_state ตัวเล็ก) ***
     let app_state = AppState {
@@ -62,6 +61,7 @@ async fn main() -> Result<()> {
         room_service: room_service.clone(),
         user_service: user_service.clone(),
         admin_service: admin_service.clone(),
+         jwt_service: jwt_service.clone()
     };
 
     let app: Router = Router::new()
@@ -69,11 +69,9 @@ async fn main() -> Result<()> {
         // User Login/Register routes
         .route("/register", post(register_user_handler))
         .route("/login/user", post(login_user_handler))
-
         // Admin Login/Register routes
         .route("/admin", post(register_admin_handler))
         .route("/login/admin", post(login_admin_handler))
-        
         // *** Router สำหรับเส้นทางที่ Admin เท่านั้นที่เข้าถึงได้ ***
         .nest(
             "/admin",
@@ -82,9 +80,11 @@ async fn main() -> Result<()> {
                 .route("/rooms/:room_id", patch(update_room_handler))
                 .route("/rooms/:room_id", delete(delete_room_handler))
                 .route("/bookings", get(get_all_bookings_handler))
+                // *** เพิ่ม route ทดสอบสำหรับ admin ***
+                .route("/test-admin", get(test_protected_admin_route))
                 // *** ใช้ตัวแปร app_state (ตัวเล็ก) ที่นี่ ***
                 .with_state(app_state.clone()) // <-- ถูกต้องแล้ว
-                .layer(middleware::from_fn(admin_middleware))
+                .layer(middleware::from_fn_with_state(app_state.clone(), admin_middleware)),
         )
         // *** Router สำหรับเส้นทางที่ User ทั่วไป (ต้อง Login) เข้าถึงได้ ***
         .nest(
@@ -93,18 +93,18 @@ async fn main() -> Result<()> {
                 .route("/", post(create_booking_handler))
                 .route("/:id", delete(cancel_booking_handler))
                 .route("/user/:user_id", get(get_user_bookings_handler))
+                // *** เพิ่ม route ทดสอบสำหรับ user ***
+                .route("/test-user", get(test_protected_user_route))
                 // *** ใช้ตัวแปร app_state (ตัวเล็ก) ที่นี่ ***
                 .with_state(app_state.clone()) // <-- ถูกต้องแล้ว
-                .layer(middleware::from_fn(auth_middleware))
+               .layer(middleware::from_fn_with_state(app_state.clone(), auth_middleware)),
         )
         // *** Router สำหรับเส้นทาง Public หรือที่ User ทั่วไปเข้าถึงได้โดยไม่ต้อง Login/Admin ***
         .route("/rooms/active", get(get_all_active_rooms_handler))
         .route("/rooms", get(get_all_room_handler))
         .route("/rooms/:room_id", get(get_room_by_id_handler))
-
         // *** ใช้ตัวแปร app_state (ตัวเล็ก) ที่ Router หลักด้วย ***
         .with_state(app_state.clone()); // <-- ถูกต้องแล้ว
-
 
     let listener = TcpListener::bind("0.0.0.0:3000").await?;
     println!("Server running on http://localhost:3000 ");

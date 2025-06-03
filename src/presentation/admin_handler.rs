@@ -91,7 +91,7 @@ pub async fn login_admin_handler(
     match app_state.admin_service.login_admin(&mut conn, login_credentials).await {
         Ok(admin_id) => {
             // สร้าง JWT Token สำหรับ Admin
-            match JwtService::create_token(admin_id, "admin") {
+            match app_state.jwt_service.create_token(admin_id, "admin") {
                 Ok(token) => {
                     let response = LoginResponse {
                         admin_id,

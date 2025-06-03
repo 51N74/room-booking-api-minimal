@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 axum = "0.7"
 axum-macros = "0.4"
+axum-extra = { version = "0.9", features = ["cookie"] } #
 diesel = { version = "2.2", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = "2.2"
 tokio = { version = "1.0", features = ["full"] }
@@ -20,6 +21,8 @@ async-trait = "0.1.83"
 r2d2 = "0.8.10"
 bcrypt = "0.17.0"
 tower = "0.4"
+http-body = "1.0" #
+bytes = "1"  
 
 [dependencies.rusqlite]
 version = "0.31"
