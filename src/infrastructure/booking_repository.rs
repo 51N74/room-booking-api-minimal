@@ -2,7 +2,7 @@ use crate::domain::booking::{Booking, CreateBookingRequest, InternalCreateBookin
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use chrono::Utc;
-
+#[derive(Clone)]
 pub struct BookingRepository;
 
 impl BookingRepository {
@@ -21,6 +21,7 @@ impl BookingRepository {
             status: "active".to_string(),
             created_at: Utc::now().naive_utc(),
             updated_at: Utc::now().naive_utc(),
+            deleted_at: None
         };
 
         diesel::insert_into(bookings::table)
