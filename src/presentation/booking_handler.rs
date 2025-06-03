@@ -8,11 +8,11 @@ use axum::{
 };
 use serde_json::json;
 use crate::app_state::AppState;
-use crate::application::booking_service::{BookingService, BookingServiceError};
+use crate::application::booking_service::{BookingServiceError};
 // import ให้ถูกต้องตามที่ใช้
-use crate::domain::booking::{Booking, NewBooking, CreateBookingRequest, InternalCreateBookingRequest}; // เพิ่ม InternalCreateBookingRequest, CreateBookingRequest
+use crate::domain::booking::{CreateBookingRequest, InternalCreateBookingRequest}; // เพิ่ม InternalCreateBookingRequest, CreateBookingRequest
 use crate::infrastructure::jwt::Claims;
-use chrono::{DateTime, Utc}; // ต้อง import DateTime, Utc
+
 
 // Handler สำหรับสร้างการจองห้องพัก
 // รับ CreateBookingRequest จาก Body

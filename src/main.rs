@@ -1,19 +1,18 @@
 use anyhow::Result;
 use axum::{
     Router,
-    body::Body, // *** เพิ่ม import นี้ ***
-    extract::State,
+
     middleware,
     routing::{delete, get, patch, post},
 };
-use room_booking_api_minimal::{app_state::AppState, application::booking_service::BookingService, infrastructure::{booking_repository::BookingRepository, jwt::JwtService}};
+use room_booking_api_minimal::{app_state::AppState, application::booking_service::BookingService, infrastructure::{jwt::JwtService}};
 
 use room_booking_api_minimal::{
     application::{
         admin_service::AdminService, room_service::RoomService, user_service::UserService,
     },
     infrastructure::{
-        admin_repository::AdminRepository, database::DbPool, database::establish_connection_pool,
+        admin_repository::AdminRepository,database::establish_connection_pool,
         room_repository::RoomRepository, user_repository::UserRepository,
     },
     middleware::auth::{admin_middleware, auth_middleware},

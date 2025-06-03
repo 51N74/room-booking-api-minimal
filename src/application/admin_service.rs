@@ -30,7 +30,7 @@ impl AdminService {
         self.repo.register_admin(conn, new_admin).await // 
     }
 
-    pub async fn login_admin(&self,conn: &mut SqliteConnection, credentials: LoginCredentials) -> Result<i32, String> {
+    pub async fn login_admin(&self,_conn: &mut SqliteConnection, credentials: LoginCredentials) -> Result<i32, String> {
         let admin = self
             .repo
             .find_admin_by_username_and_verify_password(credentials)

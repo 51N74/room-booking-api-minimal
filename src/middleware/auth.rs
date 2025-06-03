@@ -1,12 +1,10 @@
 // src/middleware/auth.rs
 
 use axum::{
-    body::Body, extract::{Request, State}, http::{header, HeaderValue, StatusCode}, middleware::{self, Next}, response::{IntoResponse, Response}, Json
+    body::Body, extract::{Request, State}, http::{header,StatusCode}, middleware::{Next}, response::{IntoResponse, Response}, Json
 };
-use axum_extra::extract::cookie::{CookieJar, Cookie}; // <--- import จาก axum-extra
-use jsonwebtoken::{DecodingKey, Validation, TokenData};
+
 use serde_json::json;
-use crate::{app_state, infrastructure::jwt::{Claims, JwtService}}; // ใช้ JwtService และ Claims ของคุณ
 use crate::app_state::AppState; // เพื่อเข้าถึง Secret หรืออื่นๆ ถ้าจำเป็น
 
 // Middleware สำหรับตรวจสอบ Token จาก Cookie (สำหรับผู้ใช้ทั่วไป)

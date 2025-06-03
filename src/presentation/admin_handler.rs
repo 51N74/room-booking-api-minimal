@@ -6,8 +6,8 @@ use serde_json::json; // เพิ่ม import สำหรับ json! macro
 
 use crate::app_state::AppState;
 // use crate::application::admin_service::AdminService; // ไม่จำเป็นต้องใช้ตรงๆ แล้ว เพราะเข้าถึงผ่าน AppState
-use crate::domain::admin::{RegisterAdminRequest, LoginCredentials}; // นำเข้า Struct จาก Domain Layer
-use crate::infrastructure::jwt::JwtService;
+use crate::domain::admin::{LoginCredentials}; // นำเข้า Struct จาก Domain Layer
+
 
 // Request Body สำหรับการลงทะเบียน (รับรหัสผ่านดิบจาก Client)
 #[derive(Clone, Deserialize)]

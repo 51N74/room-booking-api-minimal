@@ -1,6 +1,6 @@
 // src/application/booking_service.rs
 
-use crate::domain::booking::{Booking, NewBooking, InternalCreateBookingRequest}; // เพิ่ม InternalCreateBookingRequest
+use crate::domain::booking::{Booking,InternalCreateBookingRequest}; // เพิ่ม InternalCreateBookingRequest
 use crate::infrastructure::booking_repository::BookingRepository;
 use crate::infrastructure::database::DbPool; // ต้อง import DbPool
 use diesel::sqlite::SqliteConnection; // ต้อง import SqliteConnection

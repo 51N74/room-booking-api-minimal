@@ -1,4 +1,4 @@
-use crate::domain::booking::{Booking, CreateBookingRequest, InternalCreateBookingRequest, NewBooking};
+use crate::domain::booking::{Booking, InternalCreateBookingRequest, NewBooking};
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use chrono::Utc;

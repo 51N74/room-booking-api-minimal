@@ -8,7 +8,7 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::{app_state::AppState, application::room_service::RoomService};
+use crate::{app_state::AppState};
 
 // Request Body สำหรับการลงทะเบียน (รับรหัสผ่านดิบจาก Client)
 #[derive(Clone, Deserialize)]

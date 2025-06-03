@@ -5,10 +5,10 @@ use serde::{Deserialize, Serialize};
 
 
 use crate::app_state::AppState;
-use crate::application::user_service::UserService;
+
 // นำเข้า Struct จาก Domain Layer
 use crate::domain::user::LoginCredentials;
-use crate::infrastructure::jwt::JwtService;
+
 
 // Request Body สำหรับการลงทะเบียน (รับรหัสผ่านดิบจาก Client)
 #[derive(Clone, Deserialize)]
