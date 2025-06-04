@@ -4,3 +4,4 @@ pub mod user_repository;
 pub mod admin_repository;
 pub mod database;
 pub mod booking_repository;
+pub mod jwt;

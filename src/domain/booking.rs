@@ -1,8 +1,8 @@
 // src/domain/booking.rs
-use chrono::{DateTime, Utc, NaiveDateTime};
-use serde::{Deserialize, Serialize};
-use diesel::prelude::*;
 use crate::infrastructure::schema::bookings;
+use chrono::{DateTime, NaiveDateTime, Utc};
+use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable)]
 #[diesel(table_name = bookings)]
@@ -28,12 +28,12 @@ pub struct NewBooking {
     pub status: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+     pub deleted_at: Option<NaiveDateTime>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateBookingRequest {
     pub room_id: i32,
-    pub user_id: i32,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
 }
@@ -41,4 +41,11 @@ pub struct CreateBookingRequest {
 #[derive(Debug, Deserialize)]
 pub struct CancelBookingRequest {
     pub user_id: i32,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InternalCreateBookingRequest {
+    pub room_id: i32,
+    pub user_id: i32, // จะได้จาก JWT Token
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
 }

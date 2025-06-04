@@ -14,6 +14,7 @@ pub struct User {
     pub password_hash: String, // <<-- รหัสผ่านที่ถูก Hash แล้ว
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime, // <<-- ถ้ามี updated_at ใน DB
+    pub deleted_at: Option<NaiveDateTime>
 }
 
 // RegisterUserRequest: Struct ที่ใช้รับข้อมูลจาก Client สำหรับการลงทะเบียน
@@ -30,7 +31,7 @@ pub struct RegisterUserRequest {
 #[diesel(table_name = users)]
 pub struct NewUser<'a> {
     pub username: &'a str,
-    pub password_hash: &'a str, // <<-- รหัสผ่านที่ถูก Hash แล้ว
+    pub password_hash: &'a str, 
 }
 
 // LoginCredentials: Struct ที่ใช้รับข้อมูลจาก Client สำหรับการ Login

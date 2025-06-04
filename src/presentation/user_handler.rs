@@ -1,12 +1,17 @@
 // src/presentation/user_handler.rs
 
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use std::sync::Arc;
+
+use axum::Extension;
+use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 
 
-use crate::application::user_service::UserService;
+use crate::app_state::AppState;
+
 // นำเข้า Struct จาก Domain Layer
 use crate::domain::user::LoginCredentials;
+
 
 // Request Body สำหรับการลงทะเบียน (รับรหัสผ่านดิบจาก Client)
 #[derive(Clone, Deserialize)]
@@ -26,12 +31,14 @@ pub struct LoginUserRequest {
 #[derive(Debug, Serialize)]
 pub struct LoginResponse {
     pub user_id: i32,
-    // pub token: String, // ถ้ามี Token-based authentication
+    pub token: String,      // เพิ่ม token ใน response
+    pub role: String,       // เพิ่ม role ใน response
+    pub expires_in: i64,    // เวลาหมดอายุ (วินาที)
 }
 
 // Handler สำหรับการลงทะเบียนผู้ใช้ (POST /register)
 pub async fn register_user_handler(
-    State(user_service): State<UserService>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(payload): Json<CreateUserRequest>, // รับ CreateUserRequest
 ) -> impl IntoResponse {
     // แปลง CreateUserRequest ไปเป็น RegisterUserRequest
@@ -41,7 +48,7 @@ pub async fn register_user_handler(
         password: payload.password,
     };
 
-    match user_service.register_user(user_request).await {
+    match state.user_service.register_user(user_request).await {
         Ok(user) => (StatusCode::CREATED, Json(user)).into_response(), // UserEntity (User) derive Serialize
         Err(e) => (StatusCode::BAD_REQUEST, e).into_response(), // <<-- เปลี่ยนเป็น BAD_REQUEST สำหรับ Error ทั่วไป เช่น username ซ้ำ
     }
@@ -49,20 +56,30 @@ pub async fn register_user_handler(
 
 // Handler สำหรับการ Login ผู้ใช้ (POST /login)
 pub async fn login_user_handler(
-    State(user_service): State<UserService>,
-    Json(payload): Json<LoginUserRequest>, // รับ LoginUserRequest
-) -> impl IntoResponse {
-    // แปลง LoginUserRequest ไปเป็น LoginCredentials
+    Extension(state): Extension<Arc<AppState>>,
+    Json(payload): Json<LoginUserRequest>,
+) -> Result<Json<LoginResponse>, (StatusCode, String)> {
     let login_credentials = LoginCredentials {
         username: payload.username,
         password: payload.password,
     };
 
-    match user_service.login_user(login_credentials).await {
+    match state.user_service.login_user(login_credentials).await {
         Ok(user_id) => {
-            let response = LoginResponse { user_id };
-            (StatusCode::OK, Json(response)).into_response()
-        },
-        Err(e) => (StatusCode::UNAUTHORIZED, e).into_response(), // <<-- UNAUTHORIZED สำหรับ Login Failed
+            // สร้าง JWT Token
+            match state.jwt_service.create_token(user_id, "user") {
+                Ok(token) => {
+                    let response = LoginResponse {
+                        user_id,
+                        token,
+                        role: "user".to_string(),
+                        expires_in: 24 * 60 * 60, // 24 ชั่วโมง
+                    };
+                    Ok(Json(response))
+                }
+                Err(_) => Err((StatusCode::INTERNAL_SERVER_ERROR, "Failed to create token".to_string())),
+            }
+        }
+        Err(e) => Err((StatusCode::UNAUTHORIZED, e)),
     }
 }
