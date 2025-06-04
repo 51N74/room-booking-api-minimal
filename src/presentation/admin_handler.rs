@@ -1,6 +1,9 @@
 // src/presentation/admin_handler.rs
 
-use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
+use std::sync::Arc;
+
+use axum::Extension;
+use axum::{Json, http::StatusCode, response::IntoResponse};
 use serde::{Deserialize, Serialize};
 use serde_json::json; // เพิ่ม import สำหรับ json! macro
 
@@ -35,11 +38,11 @@ pub struct LoginResponse {
 // Handler สำหรับการลงทะเบียนผู้ใช้ (POST /register)
 pub async fn register_admin_handler(
     // *** ลบ State ซ้ำซ้อนออกไป เหลือแค่ 1 อัน ***
-    State(app_state): State<AppState>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(payload): Json<CreateAdminRequest>,
 ) -> impl IntoResponse {
     // 1. ดึง Connection จาก AppState
-    let mut conn = match app_state.db_pool.get() {
+    let mut conn = match state.db_pool.get() {
         Ok(conn) => conn,
         Err(e) => {
             eprintln!("Database connection error: {}", e);
@@ -55,7 +58,7 @@ pub async fn register_admin_handler(
 
     // 3. เรียกใช้ service และจัดการผลลัพธ์
     // *** ต้องส่ง &mut conn เข้าไปในพารามิเตอร์แรกของ register_admin ***
-    match app_state.admin_service.register_admin(&mut conn, admin_request).await {
+    match state.admin_service.register_admin(&mut conn, admin_request).await {
         Ok(admin) => (StatusCode::CREATED, Json(json!(admin))).into_response(), // UserEntity (User) derive Serialize
         Err(e) => {
             // *** แก้ไขการจัดการ Error ***
@@ -70,7 +73,7 @@ pub async fn register_admin_handler(
 
 // Handler สำหรับการ Login Admin (POST /login/admin)
 pub async fn login_admin_handler(
-    State(app_state): State<AppState>,
+    Extension(state): Extension<Arc<AppState>>,
     Json(payload): Json<LoginAdminRequest>,
 ) -> Result<Json<LoginResponse>, (StatusCode, String)> {
     let login_credentials = LoginCredentials {
@@ -79,7 +82,7 @@ pub async fn login_admin_handler(
     };
 
     // ดึง connection สำหรับ login_admin
-    let mut conn = match app_state.db_pool.get() {
+    let mut conn = match state.db_pool.get() {
         Ok(conn) => conn,
         Err(e) => {
             eprintln!("Database connection error: {}", e);
@@ -88,10 +91,10 @@ pub async fn login_admin_handler(
     };
 
     // *** ต้องส่ง &mut conn เข้าไปในพารามิเตอร์แรกของ login_admin ***
-    match app_state.admin_service.login_admin(&mut conn, login_credentials).await {
+    match state.admin_service.login_admin(&mut conn, login_credentials).await {
         Ok(admin_id) => {
             // สร้าง JWT Token สำหรับ Admin
-            match app_state.jwt_service.create_token(admin_id, "admin") {
+            match state.jwt_service.create_token(admin_id, "admin") {
                 Ok(token) => {
                     let response = LoginResponse {
                         admin_id,

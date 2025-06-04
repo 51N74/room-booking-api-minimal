@@ -92,6 +92,7 @@ impl RoomRepository {
             .map_err(|e| format!("Failed to get DB connection: {}", e))?; // <<-- ตรงนี้ดึง Connection จาก Pool
         let rooms = rooms::table
             .filter(rooms::deleted_at.is_null()) 
+            .filter(rooms::status.eq("available"))
             .load::<Room>(&mut conn)
             .map_err(|e| format!("Failed to retrieve all users: {}", e))?;
         Ok(rooms)

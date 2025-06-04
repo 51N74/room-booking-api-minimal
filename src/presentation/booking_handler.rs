@@ -1,7 +1,9 @@
 // src/presentation/booking_handler.rs
 
+use std::sync::Arc;
+
 use axum::{
-    extract::{State, Path, Extension},
+    extract::{ Path, Extension},
     response::IntoResponse,
     http::StatusCode,
     Json,
@@ -17,7 +19,7 @@ use crate::infrastructure::jwt::Claims;
 // Handler สำหรับสร้างการจองห้องพัก
 // รับ CreateBookingRequest จาก Body
 pub async fn create_booking_handler(
-    State(app_state): State<AppState>,
+    Extension(state): Extension<Arc<AppState>>,
     Extension(claims): Extension<Claims>,
     Json(create_request): Json<CreateBookingRequest>, // <--- เปลี่ยนเป็น CreateBookingRequest
 ) -> impl IntoResponse {
@@ -42,7 +44,7 @@ pub async fn create_booking_handler(
         end_time: create_request.end_time,
     };
 
-    let booking_service = app_state.booking_service.clone(); // <--- เรียกจาก app_state โดยตรง
+    let booking_service = state.booking_service.clone(); // <--- เรียกจาก app_state โดยตรง
 
     match booking_service.create_booking(internal_request).await { // ส่ง internal_request
         Ok(booking) => (StatusCode::CREATED, Json(booking)).into_response(),
@@ -85,7 +87,7 @@ pub async fn create_booking_handler(
 
 // Handler สำหรับดึงการจองทั้งหมดของผู้ใช้ (โดยใช้ user_id จาก JWT)
 pub async fn get_user_bookings_handler(
-    State(app_state): State<AppState>,
+    Extension(state): Extension<Arc<AppState>>,
     Extension(claims): Extension<Claims>,
 ) -> impl IntoResponse {
     let user_id_str = claims.sub;
@@ -101,7 +103,7 @@ pub async fn get_user_bookings_handler(
         }
     };
 
-    let booking_service = app_state.booking_service.clone(); // <--- เรียกจาก app_state โดยตรง
+    let booking_service = state.booking_service.clone(); // <--- เรียกจาก app_state โดยตรง
 
     match booking_service.get_bookings_by_user_id(user_id).await {
         Ok(bookings) => (StatusCode::OK, Json(bookings)).into_response(),
@@ -117,7 +119,7 @@ pub async fn get_user_bookings_handler(
 
 // Handler สำหรับยกเลิกการจอง
 pub async fn cancel_booking_handler(
-    State(app_state): State<AppState>,
+    Extension(state): Extension<Arc<AppState>>,
     Extension(claims): Extension<Claims>,
     Path(booking_id): Path<i32>,
 ) -> impl IntoResponse {
@@ -133,7 +135,7 @@ pub async fn cancel_booking_handler(
         }
     };
 
-    let booking_service = app_state.booking_service.clone(); // <--- เรียกจาก app_state โดยตรง
+    let booking_service = state.booking_service.clone(); // <--- เรียกจาก app_state โดยตรง
 
     match booking_service.cancel_booking(booking_id, user_id).await {
         Ok(success) => {
@@ -177,9 +179,9 @@ pub async fn cancel_booking_handler(
 
 // Handler สำหรับดึงการจองทั้งหมด (สำหรับ Admin)
 pub async fn get_all_bookings_handler(
-    State(app_state): State<AppState>,
+    Extension(state): Extension<Arc<AppState>>,
 ) -> impl IntoResponse {
-    let booking_service = app_state.booking_service.clone(); // <--- เรียกจาก app_state โดยตรง
+    let booking_service = state.booking_service.clone(); // <--- เรียกจาก app_state โดยตรง
 
     match booking_service.get_all_bookings().await {
         Ok(bookings) => (StatusCode::OK, Json(bookings)).into_response(),

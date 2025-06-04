@@ -1,7 +1,9 @@
 // src/middleware/auth.rs
 
+use std::sync::Arc;
+
 use axum::{
-    body::Body, extract::{Request, State}, http::{header,StatusCode}, middleware::{Next}, response::{IntoResponse, Response}, Json
+    body::Body, extract::{Request}, http::{header,StatusCode}, middleware::Next, response::{IntoResponse, Response}, Extension, Json
 };
 
 use serde_json::json;
@@ -11,7 +13,7 @@ use crate::app_state::AppState; // เพื่อเข้าถึง Secret �
 pub async fn auth_middleware(
     // jar: CookieJar, // <--- NOTE: หากไม่ใช้ Cookie แล้ว สามารถลบ CookieJar ออกไปได้
     // เราจะดึง Token จาก Authorization header แทน
-    State(app_state): State<AppState>,
+    Extension(state): Extension<Arc<AppState>>,
     mut request: Request<Body>, // รับ Request<Body>
     next: Next,
 ) -> Result<Response<Body>, Response<Body>> { // คืนค่า Response<Body>
@@ -38,7 +40,7 @@ pub async fn auth_middleware(
     if let Some(token) = token {
         // 2. Decode และ Validate Token ด้วย JwtService
         // *** แก้ไข: ใช้ app_state.jwt_service.decode_token() ***
-        match app_state.jwt_service.decode_token(&token) {
+        match state.jwt_service.decode_token(&token) {
             Ok(claims) => {
                 // 3. ตรวจสอบ Role (ถ้าจำเป็นสำหรับ Middleware นี้)
                 // Middleware นี้จะใช้สำหรับ User ทั่วไปเข้าถึง resource
@@ -81,7 +83,7 @@ pub async fn auth_middleware(
 
 // Middleware สำหรับ Admin (คล้ายกัน แต่ตรวจสอบ role = "admin")
 pub async fn admin_middleware(
-    State(app_state): State<AppState>,
+    Extension(state): Extension<Arc<AppState>>,
     mut request: Request<Body>,
     next: Next,
 ) -> Result<Response<Body>, Response<Body>> {
@@ -106,7 +108,7 @@ pub async fn admin_middleware(
 
 
     if let Some(token) = token {
-        match app_state.jwt_service.decode_token(&token) { // *** ใช้ decode_token ***
+        match state.jwt_service.decode_token(&token) { // *** ใช้ decode_token ***
             Ok(claims) => {
                 eprintln!("DEBUG: Token decoded successfully. Claims: {:?}", claims);
                 if claims.role != "admin" { // ตรวจสอบ role เป็น "admin"
