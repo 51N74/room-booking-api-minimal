@@ -3,6 +3,7 @@ use crate::domain::room::Room;
 use crate::domain::room::RoomChangeset;
 
 use chrono::Local;
+use chrono::Utc;
 use diesel::SqliteConnection;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
@@ -19,6 +20,33 @@ impl RoomRepository {
     pub fn new(pool: Pool<ConnectionManager<SqliteConnection>>) -> Self {
         RoomRepository { pool }
     }
+
+    pub fn update_room_status_sync(
+        conn: &mut SqliteConnection,
+        room_id: i32,
+        new_status: &str,
+    ) -> Result<Room, diesel::result::Error> {
+        
+        let updated_rows = diesel::update(rooms::table.find(room_id))
+            .set((
+                rooms::status.eq(new_status),
+                rooms::updated_at.eq(Utc::now().naive_utc()),
+            ))
+            .execute(conn)?; 
+
+        
+        if updated_rows == 0 {
+        
+            return Err(diesel::result::Error::NotFound);
+        }
+
+        
+        rooms::table
+            .find(room_id)
+            .select(Room::as_select())
+            .first(conn) 
+    }
+
 
     pub async fn add_room(&self, new_room_data: NewRoom<'_>) -> Result<Room, String> {
         let mut conn = self

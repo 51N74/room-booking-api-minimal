@@ -1,11 +1,11 @@
 use chrono::NaiveDateTime;
-use diesel::{prelude::AsChangeset, Insertable, Queryable};
+use diesel::{prelude::AsChangeset, Insertable, Queryable, Selectable};
 use serde::{Deserialize, Serialize};
 
 use crate::infrastructure::schema::rooms;
 // Room: Entity ที่แทนข้อมูลผู้ใช้ในฐานข้อมูล (เมื่อดึงออกมาหรือบันทึกเสร็จแล้ว)
 // มี Field ครบทุกคอลัมน์ในตาราง users
-#[derive(Debug, Clone, Queryable, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable)]
 #[diesel(table_name = rooms)]
 pub struct Room {
     pub id: i32,

@@ -1,38 +1,56 @@
 use crate::domain::booking::{Booking, InternalCreateBookingRequest, NewBooking};
+use crate::infrastructure::room_repository::RoomRepository;
+use crate::infrastructure::schema::bookings;
 use diesel::prelude::*;
 use diesel::sqlite::SqliteConnection;
 use chrono::Utc;
 #[derive(Clone)]
 pub struct BookingRepository;
 
-impl BookingRepository {
-     // สร้างการจองใหม่ - ใช้ InternalCreateBookingRequest
+    impl BookingRepository {
     pub fn create_booking(
-        conn: &mut SqliteConnection,
+        conn: &mut SqliteConnection, // A mutable reference to the SQLite database connection.
         request: InternalCreateBookingRequest,
     ) -> Result<Booking, diesel::result::Error> {
-        use crate::infrastructure::schema::bookings;
-        
-        let new_booking = NewBooking {
-            room_id: request.room_id,
-            user_id: request.user_id,
-            start_time: request.start_time.naive_utc(),
-            end_time: request.end_time.naive_utc(),
-            status: "active".to_string(),
-            created_at: Utc::now().naive_utc(),
-            updated_at: Utc::now().naive_utc(),
-            deleted_at: None
-        };
+        // --- Begin Database Transaction ---
+        // All operations within this block are treated as a single atomic unit.
+        // If any step fails, the entire transaction will be rolled back.
+        conn.transaction(|transaction_conn| {
+            // Create a new booking record with the provided details and current timestamps.
+            let new_booking = NewBooking {
+                room_id: request.room_id,
+                user_id: request.user_id,
+                start_time: request.start_time.naive_utc(),
+                end_time: request.end_time.naive_utc(),
+                status: "active".to_string(),
+                created_at: Utc::now().naive_utc(),
+                updated_at: Utc::now().naive_utc(),
+                deleted_at: None,
+            };
 
-        diesel::insert_into(bookings::table)
-            .values(&new_booking)
-            .execute(conn)?;
+            // Insert the new booking into the database.
+            diesel::insert_into(bookings::table)
+                .values(&new_booking)
+                .execute(transaction_conn)?; // Use `transaction_conn` for the atomic operation.
 
-        // ดึงข้อมูลการจองที่เพิ่งสร้าง
-        bookings::table
-            .order(bookings::id.desc())
-            .select(Booking::as_select())
-            .first(conn)
+            // Retrieve the newly created booking by selecting the most recent record.
+            let created_booking = bookings::table
+                .order(bookings::id.desc())
+                .select(Booking::as_select())
+                .first(transaction_conn)?; // Use `transaction_conn` for the atomic operation.
+
+            // --- Update Room Status within the same transaction ---
+            // Call the synchronous room status update function, ensuring it uses the
+            // same transaction connection for atomicity.
+            RoomRepository::update_room_status_sync(
+                transaction_conn, // Pass the transaction's connection.
+                request.room_id,
+                "booked", // Set the room status to "booked".
+            )?;
+            // --- End Room Status Update ---
+
+            Ok(created_booking) // Return the successfully created booking.
+        }) // The transaction will commit here if all operations succeed, or rollback on error.
     }
 
     // ยกเลิกการจอง (Soft Delete)
