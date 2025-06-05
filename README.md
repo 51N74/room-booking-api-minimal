@@ -2,7 +2,7 @@
 
 ## 🚀 Project Description
 
-[อ่านเป็นภาษาไทย](README.th.md)
+[อ่านเป็นภาษาไทย](README_TH.md)
 
 Room Booking API (Minimal) is a Backend Service developed with **Rust** and the **Axum framework** for managing room bookings, users, and administrators. This API is designed to be highly efficient, secure, and **highly extensible** for various room booking applications.
 
