@@ -194,3 +194,37 @@ pub async fn get_all_bookings_handler(
         }
     }
 }
+
+pub async fn delete_booking_handler(
+    Extension(state): Extension<Arc<AppState>>, // Extracts shared application state.
+    Path(booking_id): Path<i32>, // Extracts the booking ID from the URL path.
+) -> impl IntoResponse {
+    let booking_service = state.booking_service.clone(); // Clones the booking service.
+
+    // Calls the booking service to perform the soft deletion of the booking.
+    match booking_service.delete_booking(booking_id).await {
+        Ok(booking) => {
+            // On successful soft deletion, return 200 OK.
+            // Since the operation performs a soft delete and returns the updated Booking object,
+            // 200 OK is generally suitable. If no content were returned, 204 No Content would be preferred.
+            (StatusCode::OK, Json(booking)).into_response()
+        },
+        Err(e) => {
+            // Handle specific errors and return appropriate HTTP status codes.
+            let error_message = format!("Failed to delete booking: {}", e);
+            eprintln!("{}", error_message); // Log the error to stderr for debugging.
+
+            // Check the type of error to return the correct HTTP status code.
+            // It's recommended that `booking_service.delete_booking` returns a specific
+            // custom error enum (e.g., `ServiceError::NotFound`, `ServiceError::DatabaseError`)
+            // for more robust error handling instead of relying on string content.
+            if e.to_string().contains("NotFound") { // This is a coarse check; prefer custom error types.
+                (StatusCode::NOT_FOUND, error_message).into_response() // Return 404 if the booking isn't found.
+            } else {
+                // For other unhandled or unexpected errors (e.g., database issues),
+                // return a 500 Internal Server Error.
+                (StatusCode::INTERNAL_SERVER_ERROR, error_message).into_response()
+            }
+        }
+    }
+}

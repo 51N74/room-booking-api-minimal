@@ -119,4 +119,49 @@ pub struct BookingRepository;
             .first(conn)
             .optional()
     }
+
+    pub fn delete_booking(
+    conn: &mut SqliteConnection,
+    booking_id: i32,
+) -> Result<Booking, diesel::result::Error> {
+    use crate::infrastructure::schema::bookings;
+
+    conn.transaction(|transaction_conn| {
+   
+        let booking_to_delete = bookings::table
+            .filter(bookings::id.eq(booking_id))
+            .filter(bookings::deleted_at.is_null())
+            .select(Booking::as_select())
+            .first(transaction_conn)?;
+
+        let room_id = booking_to_delete.room_id;
+
+    
+        let updated_rows = diesel::update(bookings::table.filter(bookings::id.eq(booking_id)))
+            .set((
+                bookings::deleted_at.eq(Some(Utc::now().naive_utc())),
+                bookings::status.eq("cancelled"), 
+                bookings::updated_at.eq(Utc::now().naive_utc()), 
+            ))
+            .execute(transaction_conn)?; 
+
+        if updated_rows == 0 {
+            
+            return Err(diesel::result::Error::NotFound);
+        }
+
+       
+        RoomRepository::update_room_status_sync(
+            transaction_conn,
+            room_id,
+            "available", 
+        )?;
+
+       
+        bookings::table
+            .filter(bookings::id.eq(booking_id))
+            .select(Booking::as_select())
+            .first(transaction_conn)
+    })
+}
 }

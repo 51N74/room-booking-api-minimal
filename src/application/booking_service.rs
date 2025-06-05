@@ -83,4 +83,13 @@ impl BookingService {
         BookingRepository::get_all_bookings(conn)
             .map_err(|e| BookingServiceError::DbError(e.to_string()))
     }
+
+    pub async fn delete_booking(&self, booking_id: i32) -> Result<Booking, BookingServiceError> {
+        // Acquires a database connection from the pool.
+        let conn = &mut self.get_connection()?;
+        // Delegates to the BookingRepository to delete the booking.
+        BookingRepository::delete_booking(conn, booking_id)
+            .map_err(|e| BookingServiceError::DbError(e.to_string()))
+    }
+    
 }
