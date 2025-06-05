@@ -1,11 +1,13 @@
-use std::sync::Arc;
 use anyhow::Result;
-use axum::{middleware, routing::{delete, get, patch, post}, Extension, Router
+use axum::{
+    Extension, Router, middleware,
+    routing::{delete, get, patch, post},
 };
+use std::sync::Arc;
 
 use room_booking_api_minimal::{
     app_state::AppState, application::booking_service::BookingService,
-    infrastructure::jwt::JwtService, presentation::admin_user_handler,
+    infrastructure::jwt::JwtService, presentation::{admin_user_handler, booking_handler::delete_booking_handler},
 };
 
 use room_booking_api_minimal::{
@@ -32,8 +34,6 @@ use room_booking_api_minimal::{
     },
 };
 use tokio::net::TcpListener;
-
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -62,8 +62,7 @@ async fn main() -> Result<()> {
     // *** สร้าง JwtService instance ***
     let jwt_service = JwtService::new(&jwt_secret);
 
-    
-     let app_state = Arc::new(AppState {
+    let app_state = Arc::new(AppState {
         db_pool: db_pool.clone(),
         room_service: room_service.clone(),
         user_service: user_service.clone(),
@@ -71,10 +70,8 @@ async fn main() -> Result<()> {
         booking_service: booking_service.clone(),
         jwt_service: jwt_service.clone(),
     });
-  
- 
 
-      let app = Router::new()
+    let app = Router::new()
         // User Login/Register (ไม่ต้องมี Middleware)
         // User Login/Register routes
         .route("/register", post(register_user_handler))
@@ -90,11 +87,9 @@ async fn main() -> Result<()> {
                 .route("/rooms/:room_id", patch(update_room_handler))
                 .route("/rooms/:room_id", delete(delete_room_handler))
                 .route("/bookings", get(get_all_bookings_handler))
+                .route("/bookings/:booking_id", delete(delete_booking_handler)) // Admin can cancel bookings.
+                .route("/users", get(admin_user_handler::get_all_users_handler))
                 .route(
-                    "/users",
-                    get(admin_user_handler::get_all_users_handler),
-                )
-                 .route(
                     "/users/:user_id",
                     get(admin_user_handler::get_user_by_id_handler),
                 )
@@ -106,12 +101,11 @@ async fn main() -> Result<()> {
                 // Middleware ใช้ from_fn_with_state แต่ handler ของ middleware ต้องรับ Extension
                 .layer(middleware::from_fn_with_state(
                     app_state.clone(), // ส่ง Arc<AppState> เหมือนเดิม
-                    admin_middleware, // admin_middleware ต้องรับ Extension<Arc<AppState>>
-                ))
-                // .with_state(app_state.clone()), // <--- ลบ .with_state() ออก
+                    admin_middleware,  // admin_middleware ต้องรับ Extension<Arc<AppState>>
+                )), // .with_state(app_state.clone()), // <--- ลบ .with_state() ออก
         )
         // *** Router สำหรับเส้นทางที่ User ทั่วไป (ต้อง Login) เข้าถึงได้ ***
-       .nest(
+        .nest(
             "/bookings",
             Router::new() // <--- ไม่ต้องระบุ Router<Arc<AppState>> แล้ว
                 .route("/", post(create_booking_handler))
@@ -120,9 +114,8 @@ async fn main() -> Result<()> {
                 .route("/test-user", get(test_protected_user_route))
                 .layer(middleware::from_fn_with_state(
                     app_state.clone(), // ส่ง Arc<AppState> เหมือนเดิม
-                    auth_middleware, // auth_middleware ต้องรับ Extension<Arc<AppState>>
-                ))
-                // .with_state(app_state.clone()), // <--- ลบ .with_state() ออก
+                    auth_middleware,   // auth_middleware ต้องรับ Extension<Arc<AppState>>
+                )), // .with_state(app_state.clone()), // <--- ลบ .with_state() ออก
         )
         // *** Router สำหรับเส้นทาง Public หรือที่ User ทั่วไปเข้าถึงได้โดยไม่ต้อง Login/Admin ***
         .route("/rooms/active", get(get_all_active_rooms_handler))
@@ -131,12 +124,11 @@ async fn main() -> Result<()> {
         // *** ใช้ตัวแปร app_state (ตัวเล็ก) ที่ Router หลักด้วย ***
         .layer(Extension(app_state.clone()));
 
-   let listener = TcpListener::bind("0.0.0.0:3000").await?;
+    let listener = TcpListener::bind("0.0.0.0:3000").await?;
     println!("listening on {}", listener.local_addr()?);
 
-   
-   // *** เรียกใช้ AxumServer แทน Server ***
+    // *** เรียกใช้ AxumServer แทน Server ***
     axum::serve(listener, app).await?;
-    
+
     Ok(())
 }
